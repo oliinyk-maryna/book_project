@@ -38,12 +38,13 @@ export default function MyBookTracker() {
     return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
   };
 
+// src/pages/MyBookTracker.jsx
   const handleFinishSession = async () => {
     setIsActive(false);
     const start = Number(startPage) || 0;
     const end = Number(endPage) || 0;
     
-    if (end <= start) return alert("Введіть коректну кінцеву сторінку.");
+    if (end < start) return alert("Кінцева сторінка не може бути меншою за початкову.");
 
     setIsSaving(true);
     try {

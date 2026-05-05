@@ -2,8 +2,10 @@ import React, { useState, useEffect } from 'react';
 import { Settings, LogOut, BookOpen, Users, Star } from 'lucide-react';
 import { userApi } from '../api/user.api';
 import { StatCard, Loader } from '../components/ui';
+import { useNavigate } from 'react-router-dom';
 
-export default function ProfilePage({ handleLogout, handleNavigate }) {
+export default function ProfilePage({ handleLogout }) {
+  const navigate = useNavigate();
   const [user, setUser] = useState(null);
   const [stats, setStats] = useState({ read: 0, reading: 0, reviews: 0 });
 
@@ -35,10 +37,7 @@ export default function ProfilePage({ handleLogout, handleNavigate }) {
             <p className="text-stone-500 font-medium">{user.email}</p>
           </div>
         </div>
-        <button 
-          onClick={() => handleNavigate('settings')} 
-          className="p-3 bg-stone-100 rounded-2xl text-stone-500 hover:text-stone-900 hover:bg-stone-200 transition-all"
-        >
+        <button onClick={() => navigate('/settings')} className="p-3 bg-stone-100 rounded-2xl text-stone-500 hover:text-stone-900 hover:bg-stone-200 transition-all">
           <Settings className="w-6 h-6" />
         </button>
       </header>

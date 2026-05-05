@@ -196,6 +196,7 @@ func NewRouter(db *pgxpool.Pool) http.Handler {
 	mux.HandleFunc("PUT /api/admin/users/{id}/role", middleware.Auth(middleware.AdminOnly(adminHandler.SetUserRole)))
 	mux.HandleFunc("GET /api/admin/stats", middleware.Auth(middleware.AdminOnly(adminHandler.GetSiteStats)))
 	mux.HandleFunc("DELETE /api/admin/reviews/{id}", middleware.Auth(middleware.AdminOnly(adminHandler.DeleteReview)))
+	mux.HandleFunc("DELETE /api/admin/threads/{id}", middleware.Auth(middleware.AdminOnly(adminHandler.DeleteThread)))
 
 	return middleware.CORS(mux)
 }

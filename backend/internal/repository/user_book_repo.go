@@ -113,6 +113,7 @@ func (r *UserBookRepository) AddBookToShelf(ctx context.Context, userID uuid.UUI
 	if err != nil {
 		return err
 	}
+	r.db.Exec(ctx, `INSERT INTO activity_feed(actor_id, type, work_id) VALUES($1::uuid, 'add_book', $2::uuid) ON CONFLICT DO NOTHING`, userID, workID)
 
 	return tx.Commit(ctx)
 }

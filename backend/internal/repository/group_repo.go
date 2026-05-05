@@ -405,13 +405,16 @@ func (r *GroupRepository) SaveMessage(ctx context.Context, msg models.ChatMessag
 	return err
 }
 
+// internal/repository/group_repo.go
 func (r *GroupRepository) GetRecentMessages(ctx context.Context, clubID string, limit int) ([]models.ChatMessage, error) {
 	rows, err := r.db.Query(ctx, `
-		SELECT id, club_id, user_id, COALESCE(username,''), content, type::text,
-			page_ref, reply_to_id, is_deleted, created_at
-		FROM chat_messages
-		WHERE club_id = $1::uuid AND is_deleted = false
+		SELECT id, club_id, user_id, COALESCE(username,''), 
+		CASE WHEN is_deleted THEN 'Повідомлення видалено' ELSE content END as content, 
+		type::text, page_ref, reply_to_id, is_deleted, created_at
+		FROM chat_messages 
+		WHERE club_id = $1::uuid
 		ORDER BY created_at DESC LIMIT $2`, clubID, limit,
+	// ...
 	)
 	if err != nil {
 		return nil, err

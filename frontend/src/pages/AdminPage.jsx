@@ -16,7 +16,8 @@ export default function AdminPage() {
       adminApi.getUsers()
     ])
     .then(([statsData, usersData]) => {
-      setStats(statsData || { users_count: 0, books_count: 0, reviews_count: 0 });
+      // Тут ми використовуємо нові ключі з бекенду (total_users і т.д.)
+      setStats(statsData || { total_users: 0, total_books: 0, total_reviews: 0 });
       setUsers(usersData || []);
     })
     .catch(console.error)
@@ -52,9 +53,10 @@ export default function AdminPage() {
       </header>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-12">
-        <StatCard icon={Users} label="Спільнота" value={stats?.users_count} sub="юзерів" />
-        <StatCard icon={BookPlus} label="Бібліотека" value={stats?.books_count} sub="книг" variant="light" />
-        <StatCard icon={MessageSquare} label="Активність" value={stats?.reviews_count} sub="відгуків" variant="light" />
+        {/* Ось тут тепер правильні значення stats?.total_users замість stats?.users_count */}
+        <StatCard icon={Users} label="Спільнота" value={stats?.total_users} sub="юзерів" />
+        <StatCard icon={BookPlus} label="Бібліотека" value={stats?.total_books} sub="книг" variant="light" />
+        <StatCard icon={MessageSquare} label="Активність" value={stats?.total_reviews} sub="відгуків" variant="light" />
       </div>
 
       <section className="bg-white rounded-[2.5rem] border border-stone-100 shadow-sm overflow-hidden">

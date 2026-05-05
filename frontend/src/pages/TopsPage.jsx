@@ -1,5 +1,6 @@
 import React from 'react';
 import { Trophy, ChevronRight, BookOpen, Users, Star } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 
 const mockCategories = [
   { id: 'fiction', name: 'Художня література', votes: 124500 },
@@ -10,7 +11,8 @@ const mockCategories = [
   { id: 'history', name: 'Історичний роман', votes: 45100 },
 ];
 
-export default function TopsPage({ handleNavigate }) {
+export default function TopsPage() {
+  const navigate = useNavigate();
   const totalVotes = mockCategories.reduce((acc, cat) => acc + cat.votes, 0); // Підрахунок голосів[cite: 68]
 
   return (
@@ -44,11 +46,7 @@ export default function TopsPage({ handleNavigate }) {
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
         {mockCategories.map(cat => (
-          <div 
-            key={cat.id} 
-            onClick={() => handleNavigate('discover')} 
-            className="bg-white rounded-[2.5rem] border border-stone-100 overflow-hidden hover:shadow-2xl hover:border-emerald-500/20 transition-all duration-500 cursor-pointer group"
-          >
+          <div key={cat.id} onClick={() => navigate('/discover')} className="bg-white rounded-[2.5rem] border border-stone-100 overflow-hidden hover:shadow-2xl hover:border-emerald-500/20 transition-all duration-500 cursor-pointer group">
             <div className="bg-stone-50/50 py-4 px-8 border-b border-stone-50 flex justify-between items-center group-hover:bg-emerald-900 transition-colors duration-500">
               <h3 className="font-serif font-bold text-stone-800 group-hover:text-white text-xl">
                 {cat.name}

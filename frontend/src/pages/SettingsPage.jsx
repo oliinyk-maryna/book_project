@@ -2,8 +2,10 @@ import React, { useState, useEffect } from 'react';
 import { FileText, ArrowLeft, Check, User } from 'lucide-react';
 import { userApi } from '../api/user.api';
 import { Button, Loader } from '../components/ui';
+import { useNavigate } from 'react-router-dom';
 
-export default function SettingsPage({ handleNavigate }) {
+export default function SettingsPage() {
+  const navigate = useNavigate();
   const [user, setUser] = useState({ username: '', bio: '' });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -27,10 +29,7 @@ export default function SettingsPage({ handleNavigate }) {
   return (
     <div className="max-w-xl mx-auto px-6 pt-12 pb-24 animate-in slide-in-from-left-4 duration-500">
       <header className="flex items-center gap-4 mb-10">
-        <button 
-          onClick={() => handleNavigate('back')}
-          className="p-2 hover:bg-stone-100 rounded-full transition-colors"
-        >
+        <button onClick={() => navigate(-1)} className="p-2 hover:bg-stone-100 rounded-full transition-colors">
           <ArrowLeft className="w-6 h-6 text-stone-900" />
         </button>
         <h1 className="text-3xl font-serif font-bold text-stone-900">Налаштування</h1>
@@ -58,6 +57,17 @@ export default function SettingsPage({ handleNavigate }) {
             placeholder="Розкажіть про свої книжкові вподобання..."
             className="w-full px-5 py-4 rounded-2xl bg-stone-50 border border-stone-100 outline-none focus:border-[#2C5234] focus:ring-4 ring-emerald-500/10 transition-all font-medium resize-none h-40"
           />
+<div className="space-y-2">
+  <label className="text-xs font-black uppercase tracking-widest text-stone-400 ml-1 flex items-center gap-2">
+    URL Аватарки (посилання на зображення)
+  </label>
+  <input 
+    value={user.avatar_url || ''} 
+    onChange={e => setUser({...user, avatar_url: e.target.value})}
+    placeholder="https://example.com/avatar.jpg"
+    className="w-full px-5 py-4 rounded-2xl bg-stone-50 border border-stone-100 outline-none focus:border-[#2C5234]"
+  />
+</div>
         </div>
 
         <div className="flex justify-end pt-2">

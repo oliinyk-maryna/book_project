@@ -1,8 +1,8 @@
+// src/pages/HomePage.jsx
 import React from 'react';
 import { Sparkles, ArrowRight, BookOpen } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
-// Виправлення ReferenceError: Компонент тепер визначений
 const AIRecommendations = ({ isLoggedIn }) => (
   <section className="bg-emerald-50/50 border border-emerald-100 rounded-[2.5rem] p-8 mt-12">
     <div className="flex items-center gap-3 mb-6">

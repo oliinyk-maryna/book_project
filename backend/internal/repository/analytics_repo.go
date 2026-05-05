@@ -2,6 +2,7 @@ package repository
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"book_project/backend/internal/models"
@@ -418,15 +419,20 @@ func (r *AnalyticsRepository) GetHighRatedBooks(ctx context.Context, userID stri
 // GetGoal повертає ціль читання користувача на конкретний рік
 func (r *AnalyticsRepository) GetGoal(ctx context.Context, userID string, year int) (map[string]interface{}, error) {
 	var targetBooks, targetPages int
-
-	// Використовуємо QueryRow (без Context у назві)
-	// Також виправляємо назву колонки year -> goal_year, як у ваших попередніх методах
 	err := r.db.QueryRow(ctx,
 		"SELECT target_books, target_pages FROM reading_goals WHERE user_id = $1::uuid AND goal_year = $2",
 		userID, year,
 	).Scan(&targetBooks, &targetPages)
 
 	if err != nil {
+		// Якщо ціль ще не створена, повертаємо нулі без помилки
+		if errors.Is(err, pgx.ErrNoRows) {
+			return map[string]interface{}{
+				"year":         year,
+				"target_books": 0,
+				"target_pages": 0,
+			}, nil
+		}
 		return nil, err
 	}
 
@@ -437,24 +443,21 @@ func (r *AnalyticsRepository) GetGoal(ctx context.Context, userID string, year i
 	}, nil
 }
 
-// GetUserStreak розраховує поточну серію днів читання (streak)
+// internal/repository/analytics_repo.go
 func (r *AnalyticsRepository) GetUserStreak(ctx context.Context, userID string) (int, error) {
 	var streak int
-
-	// Використовуємо синтаксис PostgreSQL ($1) замість (?)
-	// Також замінюємо QueryRowContext на QueryRow
 	query := `
 		WITH RECURSIVE dates AS (
-			SELECT MAX(session_date) as last_date
-			FROM reading_sessions
+			SELECT MAX(session_date) as last_date 
+			FROM reading_sessions 
 			WHERE user_id = $1::uuid AND session_date >= CURRENT_DATE - INTERVAL '1 day'
 			UNION ALL
-			SELECT (last_date - INTERVAL '1 day')::date
-			FROM dates
+			SELECT (last_date - INTERVAL '1 day')::date 
+			FROM dates 
 			WHERE EXISTS (
 				SELECT 1 FROM reading_sessions 
 				WHERE user_id = $1::uuid AND session_date = (last_date - INTERVAL '1 day')::date
-			)
+			) -- ДОДАНО ЗАКРИВАЮЧУ ДУЖКУ
 		)
 		SELECT COUNT(*) FROM dates;`
 
@@ -462,6 +465,5 @@ func (r *AnalyticsRepository) GetUserStreak(ctx context.Context, userID string) 
 	if err != nil {
 		return 0, nil
 	}
-
 	return streak, nil
 }

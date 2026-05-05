@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
+import { Routes, Route, Navigate } from 'react-router-dom';
 
 // Layout & Auth
 import MainLayout from './components/layout/MainLayout';
@@ -14,16 +14,35 @@ import AdminPage from './pages/AdminPage';
 import ClubsPage from './pages/ClubsPage';
 import TopsPage from './pages/TopsPage';
 import ProfilePage from './pages/ProfilePage';
-import RegisterPage from './pages/RegisterPage';
 import SettingsPage from './pages/SettingsPage';
 import LibraryPage from './pages/LibraryPage';
+
+// API
+import { authApi } from './api/auth.api';
+import { Loader } from './components/ui';
 
 export default function App() {
   const [user, setUser] = useState(null);
   const [isAuthOpen, setIsAuthOpen] = useState(false);
-  
-  // Додаємо стан для режиму модалки (вхід чи реєстрація)
-  const [authMode, setAuthMode] = useState('login'); 
+  const [authMode, setAuthMode] = useState('login');
+  const [isInitializing, setIsInitializing] = useState(true);
+
+  // Перевіряємо, чи є токен при завантаженні
+  useEffect(() => {
+    const initAuth = async () => {
+      const token = localStorage.getItem('token');
+      if (token) {
+        try {
+          const data = await authApi.getMe();
+          setUser(data.profile || data);
+        } catch (error) {
+          localStorage.removeItem('token');
+        }
+      }
+      setIsInitializing(false);
+    };
+    initAuth();
+  }, []);
 
   const handleOpenAuth = (mode = 'login') => {
     setAuthMode(mode);
@@ -33,59 +52,38 @@ export default function App() {
   const handleLogout = () => {
     setUser(null);
     localStorage.removeItem('token');
+    window.location.href = '/'; // Перезавантажуємо, щоб очистити стан
   };
 
+  if (isInitializing) return <Loader fullPage />;
+
   return (
-    <Router>
-      {/* 
-        MainLayout огортає всі сторінки. 
-        Він сам малює бокове/нижнє меню та верхній хедер 
-      */}
+    <>
       <MainLayout user={user} onOpenAuth={handleOpenAuth}>
         <Routes>
           <Route path="/" element={<HomePage isLoggedIn={!!user} />} />
           <Route path="/discover" element={<DiscoverPage />} />
-          
-          <Route 
-            path="/book/:id" 
-            element={<BookPage isLoggedIn={!!user} user={user} openAuth={handleOpenAuth} />} 
-          />
-          
-          <Route 
-            path="/library" 
-            element={<LibraryPage isLoggedIn={!!user} openAuth={handleOpenAuth} />} 
-          />
-          
-          <Route path="/analytics" element={<AnalyticsPage isLoggedIn={!!user} />} />
-          
-          <Route 
-            path="/clubs" 
-            element={<ClubsPage isLoggedIn={!!user} user={user} openAuth={handleOpenAuth} />} 
-          />
-          
+          <Route path="/book/:id" element={<BookPage isLoggedIn={!!user} user={user} />} />
           <Route path="/tops" element={<TopsPage />} />
-          <Route path="/register" element={<RegisterPage />} />
           
-          {/* Захищені маршрути */}
-          <Route 
-            path="/profile" 
-            element={<ProfilePage handleLogout={handleLogout} />} 
-          />
-          <Route path="/settings" element={<SettingsPage />} />
+          {/* Захищені маршрути для звичайних користувачів */}
+          <Route path="/library" element={user ? <LibraryPage isLoggedIn={!!user} openAuth={handleOpenAuth} /> : <Navigate to="/" />} />
+          <Route path="/analytics" element={user ? <AnalyticsPage isLoggedIn={!!user} /> : <Navigate to="/" />} />
+          <Route path="/clubs" element={<ClubsPage isLoggedIn={!!user} user={user} openAuth={handleOpenAuth} />} />
+          <Route path="/profile" element={user ? <ProfilePage handleLogout={handleLogout} /> : <Navigate to="/" />} />
+          <Route path="/settings" element={user ? <SettingsPage /> : <Navigate to="/" />} />
           
-          {user?.role === 'admin' && (
-            <Route path="/admin" element={<AdminPage />} />
-          )}
+          {/* Захищений маршрут для адміна */}
+          <Route path="/admin" element={user?.role === 'admin' ? <AdminPage /> : <Navigate to="/" />} />
         </Routes>
       </MainLayout>
 
-      {/* Модальне вікно авторизації */}
       <AuthModal 
         isOpen={isAuthOpen} 
         onClose={() => setIsAuthOpen(false)} 
         onSuccess={(userData) => setUser(userData)}
         initialMode={authMode === 'login'}
       />
-    </Router>
+    </>
   );
 }
