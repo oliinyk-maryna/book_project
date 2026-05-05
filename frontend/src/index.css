@@ -1,0 +1,25 @@
+@import "tailwindcss";
+
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Lora:ital,wght@0,600;1,400&display=swap');
+
+:root {
+    --font-sans: 'Inter', sans-serif;
+    --font-serif: 'Lora', serif;
+    --bg-main: #F9F7F2;
+    --primary: #2C5234;
+    --accent: #E87A5D;
+    --text-main: #1A1A1A;
+}
+
+body {
+    font-family: var(--font-sans);
+    background-color: var(--bg-main);
+    color: var(--text-main);
+    -webkit-font-smoothing: antialiased;
+}
+
+h1,
+h2,
+.book-title {
+    font-family: var(--font-serif);
+}
