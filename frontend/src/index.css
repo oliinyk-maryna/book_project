@@ -1,14 +1,25 @@
 @import "tailwindcss";
-
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Lora:ital,wght@0,600;1,400&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Playfair+Display:ital,wght@0,600;0,700;0,900;1,600&display=swap');
 
 :root {
     --font-sans: 'Inter', sans-serif;
-    --font-serif: 'Lora', serif;
-    --bg-main: #F9F7F2;
-    --primary: #2C5234;
-    --accent: #E87A5D;
-    --text-main: #1A1A1A;
+    --font-serif: 'Playfair Display', serif;
+
+    /* Кольорова палітра */
+    --bg-main: #FAFAF9;
+    /* Теплий кремовий (stone-50) */
+    --bg-surface: #FFFFFF;
+    --primary: #1A361D;
+    /* Глибокий зелений */
+    --primary-hover: #2C5234;
+    --accent: #D97757;
+    /* Приглушений теракотовий для акцентів */
+    --text-main: #1C1917;
+    /* stone-900 */
+    --text-muted: #78716C;
+    /* stone-500 */
+    --border: #E7E5E4;
+    /* stone-200 */
 }
 
 body {
@@ -20,6 +31,17 @@ body {
 
 h1,
 h2,
-.book-title {
+h3,
+.font-serif {
     font-family: var(--font-serif);
+}
+
+/* Приховування скроллбару для горизонтальних списків */
+.no-scrollbar::-webkit-scrollbar {
+    display: none;
+}
+
+.no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
 }

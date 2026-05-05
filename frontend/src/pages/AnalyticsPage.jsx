@@ -1,59 +1,106 @@
-// ActivityHeatmap та WeekChart залишаємо як допоміжні, але з оновленими стилями
+import React, { useState, useEffect } from 'react';
+import { BookOpen, Clock, Zap, Target, Flame, Calendar as CalendarIcon } from 'lucide-react';
+import { userApi } from '../api/user.api';
+import Loader from '../components/ui/Loader';
+import StatCard from '../components/ui/StatCard';
+
 export default function AnalyticsPage({ isLoggedIn }) {
-  const { stats, calendar, isLoading, goalProps, saveGoal } = useAnalyticsData(isLoggedIn);
+  const [stats, setStats] = useState(null);
+  const [loading, setLoading] = useState(true);
   const year = new Date().getFullYear();
 
-  if (!isLoggedIn) return <EmptyAnalyticsState />;
-  if (isLoading) return <AnalyticsSkeleton />;
+  useEffect(() => {
+    if (!isLoggedIn) {
+      setLoading(false);
+      return;
+    }
+    userApi.getStats()
+      .then(data => setStats(data))
+      .catch(console.error)
+      .finally(() => setLoading(false));
+  }, [isLoggedIn]);
+
+  if (!isLoggedIn) {
+    return (
+      <div className="min-h-[60vh] flex flex-col items-center justify-center text-center px-6">
+        <div className="w-20 h-20 bg-stone-100 rounded-[2rem] flex items-center justify-center mb-6">
+          <Target className="w-10 h-10 text-stone-300" />
+        </div>
+        <h2 className="text-3xl font-serif font-bold text-stone-900 mb-4">Аналітика недоступна</h2>
+        <p className="text-stone-500 font-medium">Увійдіть в систему, щоб відстежувати свій прогрес читання.</p>
+      </div>
+    );
+  }
+
+  if (loading) return <Loader fullPage />;
+
+  const booksRead = stats?.books_read || 0;
+  const hours = Math.round((stats?.total_duration_seconds || 0) / 3600);
+  const streak = stats?.current_streak || 0;
+  const goal = stats?.target_books || 0;
+  const pct = goal > 0 ? Math.min(100, Math.round((booksRead / goal) * 100)) : 0;
 
   return (
-    <main className="max-w-5xl mx-auto px-6 py-12 pb-32 animate-in slide-in-from-bottom-4 duration-700">
-      <header className="flex flex-col sm:flex-row sm:items-end justify-between gap-6 mb-10">
-        <div>
-          <h1 className="text-4xl font-serif font-bold text-stone-900 tracking-tight">Ваша історія</h1>
-          <p className="text-stone-500 mt-2 font-medium">Статистика читання за {year} рік</p>
-        </div>
-        <button
-          onClick={() => goalProps.setShowForm(!goalProps.showForm)}
-          className="group flex items-center gap-2 text-sm font-bold bg-stone-900 text-white px-6 py-3 rounded-2xl hover:bg-stone-800 transition-all shadow-lg shadow-stone-200"
-        >
-          <Target className="w-4 h-4 transition-transform group-hover:scale-110" />
-          {goalProps.showForm ? 'Закрити налаштування' : 'Встановити ціль'}
-        </button>
+    <main className="max-w-6xl mx-auto px-6 py-12 animate-in fade-in slide-in-from-bottom-4 duration-700">
+      <header className="mb-12">
+        <h1 className="text-4xl md:text-5xl font-serif font-black text-stone-900 mb-4">Ваша історія</h1>
+        <p className="text-stone-500 font-medium text-lg flex items-center gap-2">
+          <CalendarIcon className="w-5 h-5" /> Статистика за весь час
+        </p>
       </header>
 
-      {/* Основні метрики */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-5 mb-8">
-        <StatCard icon={BookOpen} bg="bg-emerald-50" label="Прочитано" value={stats.booksRead} sub="видань всього" />
-        <StatCard icon={Flame} bg="bg-orange-50" label="Прогрес року" value={stats.booksYear} sub={`${stats.gBooks} за планом`} />
-        <StatCard icon={Clock} dark label="Час у книгах" value={stats.hours} sub="годин занурення" />
-        <StatCard icon={Zap} bg="bg-amber-50" label="Ударний темп" value={`${stats.streak} дн.`} sub="без перерв" />
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-12">
+        <StatCard icon={BookOpen} label="Прочитано" value={booksRead} sub="книг" />
+        <StatCard icon={Clock} label="Інвестовано" value={hours} sub="годин" variant="light" />
+        <StatCard icon={Zap} label="Ударний темп" value={streak} sub="днів поспіль" />
+        <StatCard icon={Flame} label="Рецензій" value={stats?.reviews_count || 0} sub="написано" variant="light" />
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Картка цілі та швидкості */}
-        <div className="lg:col-span-2 space-y-6">
-          <GoalSection {...goalProps} stats={stats} year={year} onSave={saveGoal} />
-          
-          <section className="bg-white rounded-[2rem] border border-stone-200 p-8 shadow-sm">
-            <div className="flex items-center justify-between mb-8">
-              <h3 className="font-bold text-stone-900 flex items-center gap-2 text-lg">
-                <TrendingUp className="w-5 h-5 text-emerald-600" /> Тижнева активність
-              </h3>
-            </div>
-            <WeekChart days={calendar} />
-          </section>
-        </div>
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        {/* Віджет Ціль */}
+        <section className="lg:col-span-2 bg-white rounded-[2.5rem] border border-stone-100 p-8 shadow-sm">
+          <div className="flex justify-between items-center mb-8">
+            <h3 className="text-2xl font-bold text-stone-900 flex items-center gap-3">
+              <Target className="w-6 h-6 text-[#D97757]" /> Ціль {year}
+            </h3>
+            {goal > 0 && <span className="text-3xl font-serif font-black text-[#1A361D]">{pct}%</span>}
+          </div>
 
-        <div className="space-y-6">
-          <SpeedCard speed={stats.speed} genre={stats.genre} />
-          <section className="bg-white rounded-[2rem] border border-stone-200 p-8 shadow-sm">
-             <h3 className="font-bold text-stone-900 flex items-center gap-2 mb-6">
-               <Calendar className="w-5 h-5 text-stone-400" /> Теплова карта
-             </h3>
-             <ActivityHeatmap days={calendar} />
-          </section>
-        </div>
+          {goal > 0 ? (
+            <div>
+              <div className="w-full bg-stone-100 rounded-full h-4 overflow-hidden mb-4 shadow-inner">
+                <div className="h-full bg-gradient-to-r from-[#1A361D] to-[#3a753e] rounded-full transition-all duration-1000" style={{ width: `${pct}%` }} />
+              </div>
+              <p className="text-stone-500 font-medium">
+                Прочитано <span className="font-bold text-stone-900">{booksRead}</span> з {goal} книг.
+                {booksRead < goal ? ` Ще ${goal - booksRead} до цілі!` : ' Ціль досягнуто! 🎉'}
+              </p>
+            </div>
+          ) : (
+            <div className="text-center py-6 bg-stone-50 rounded-3xl border border-dashed border-stone-200">
+              <p className="text-stone-500 font-medium mb-3">Ви ще не встановили ціль на цей рік.</p>
+              <button className="bg-stone-900 text-white px-6 py-3 rounded-xl font-bold hover:bg-stone-800 transition-colors">
+                Встановити ціль
+              </button>
+            </div>
+          )}
+        </section>
+
+        {/* Швидкість читання */}
+        <section className="bg-[#1A361D] rounded-[2.5rem] p-8 text-white relative overflow-hidden flex flex-col justify-between shadow-xl">
+          <div className="absolute -right-10 -top-10 opacity-5">
+            <Zap className="w-64 h-64" />
+          </div>
+          <div className="relative z-10">
+            <p className="text-[10px] font-black uppercase tracking-widest text-emerald-400/80 mb-2">Швидкість</p>
+            <p className="text-6xl font-serif font-black mb-2">{Math.round(stats?.avg_pages_per_hour || 0)}</p>
+            <p className="text-emerald-100/80 font-medium">сторінок на годину</p>
+          </div>
+          <div className="relative z-10 mt-8 pt-6 border-t border-white/10">
+            <p className="text-sm font-medium text-emerald-100/80">Улюблений жанр</p>
+            <p className="font-bold text-lg">{stats?.favorite_genre || 'Не визначено'}</p>
+          </div>
+        </section>
       </div>
     </main>
   );

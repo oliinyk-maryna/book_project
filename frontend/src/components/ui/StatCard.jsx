@@ -1,36 +1,25 @@
 import React from 'react';
 
-export default function StatCard({ 
-  icon: Icon, 
-  label, 
-  value, 
-  sub, 
-  variant = 'light', // 'light', 'dark', or 'color'
-  colorClass = 'bg-stone-100 text-stone-600'
-}) {
-  const variants = {
-    light: "bg-white border-stone-200 text-stone-900",
-    dark: "bg-stone-900 border-stone-800 text-white",
-  };
-
+export default function StatCard({ label, value, icon: Icon, variant = 'default', sub }) {
+  const isLight = variant === 'light';
+  
   return (
-    <div className={`p-6 rounded-3xl border shadow-sm flex flex-col justify-between transition-all hover:shadow-md ${variants[variant] || variants.light}`}>
-      <div className={`p-3 rounded-2xl w-fit ${variant === 'dark' ? 'bg-stone-800 text-white' : colorClass}`}>
-        {Icon && <Icon className="w-5 h-5" />}
+    <div className={`p-6 rounded-[2rem] border transition-all ${
+      isLight ? 'bg-stone-50 border-stone-100 hover:shadow-md' : 'bg-white border-stone-200 shadow-sm'
+    }`}>
+      <div className="flex items-center gap-4 mb-4">
+        <div className={`w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 ${
+          isLight ? 'bg-white text-stone-600 shadow-sm' : 'bg-emerald-50 text-[#1A361D]'
+        }`}>
+          <Icon className="w-6 h-6" />
+        </div>
+        <p className="text-xs font-black uppercase tracking-widest text-stone-400">{label}</p>
       </div>
-      
-      <div className="mt-5">
-        <p className={`text-[10px] font-bold uppercase tracking-widest mb-1 ${variant === 'dark' ? 'text-stone-500' : 'text-stone-400'}`}>
-          {label}
-        </p>
-        <p className="text-3xl font-bold font-serif leading-none">
+      <div className="flex items-baseline gap-2">
+        <p className={`text-4xl font-serif font-black ${isLight ? 'text-stone-900' : 'text-[#1A361D]'}`}>
           {value}
         </p>
-        {sub && (
-          <p className={`text-xs mt-2 font-medium ${variant === 'dark' ? 'text-stone-400' : 'text-stone-500'}`}>
-            {sub}
-          </p>
-        )}
+        {sub && <span className="text-sm font-bold text-stone-400">{sub}</span>}
       </div>
     </div>
   );

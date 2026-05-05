@@ -15,10 +15,17 @@ const client = async (endpoint, { body, method, ...customConfig } = {}) => {
   try {
     const response = await fetch(`${API_URL}${endpoint}`, config);
 
+    // Обробка простроченого токена
     if (response.status === 401) {
       localStorage.removeItem('token');
-      window.dispatchEvent(new Event('auth:expired'));
-      return Promise.reject({ message: 'Unauthorized', status: 401 });
+      window.dispatchEvent(new Event('auth:expired')); // Глобальний івент для показу AuthModal
+      return Promise.reject({ message: 'Сесія закінчилась. Увійдіть знову.', status: 401 });
+    }
+
+    // Обробка падіння бекенду
+    if (response.status >= 500) {
+      window.dispatchEvent(new Event('server:down'));
+      return Promise.reject({ message: 'Технічні роботи', status: response.status });
     }
 
     if (response.status === 204 || response.headers.get('content-length') === '0') {
@@ -34,7 +41,8 @@ const client = async (endpoint, { body, method, ...customConfig } = {}) => {
     return Promise.reject(new Error(errorText || `HTTP ${response.status}`));
   } catch (err) {
     if (err instanceof TypeError && err.message.includes('fetch')) {
-      return Promise.reject(new Error('Сервер недоступний. Перевірте підключення.'));
+      window.dispatchEvent(new Event('server:down'));
+      return Promise.reject(new Error('Сервер недоступний.'));
     }
     return Promise.reject(err);
   }

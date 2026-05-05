@@ -1,20 +1,21 @@
 import React from 'react';
-import { Loader2 } from 'lucide-react';
+import { BookOpen } from 'lucide-react';
 
-export default function Loader({ fullPage = false, size = "md" }) {
-  const sizes = {
-    sm: "w-5 h-5",
-    md: "w-8 h-8",
-    lg: "w-12 h-12"
-  };
-
-  const containerClasses = fullPage 
-    ? "fixed inset-0 bg-white/80 backdrop-blur-sm z-[100] flex items-center justify-center"
-    : "flex items-center justify-center py-10 w-full";
-
-  return (
-    <div className={containerClasses}>
-      <Loader2 className={`${sizes[size]} animate-spin text-[#2C5234]`} />
+export default function Loader({ fullPage = false }) {
+  const content = (
+    <div className="flex flex-col items-center justify-center gap-4">
+      <div className="relative">
+        <div className="absolute inset-0 border-4 border-[#1A361D]/20 rounded-full animate-ping" />
+        <div className="w-16 h-16 bg-[#1A361D] rounded-full flex items-center justify-center animate-bounce shadow-xl">
+          <BookOpen className="w-8 h-8 text-white" />
+        </div>
+      </div>
+      <p className="text-stone-500 font-bold tracking-widest uppercase text-[10px] animate-pulse">Завантаження...</p>
     </div>
   );
+
+  if (fullPage) {
+    return <div className="min-h-[70vh] flex items-center justify-center">{content}</div>;
+  }
+  return <div className="py-12 flex justify-center">{content}</div>;
 }
