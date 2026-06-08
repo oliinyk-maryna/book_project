@@ -56,7 +56,7 @@ func (s *BookService) GetFilterOptions(ctx context.Context) (*models.FilterOptio
 func (s *BookService) GetReviewsByWorkID(ctx context.Context, workID string) ([]models.WorkReview, error) {
 	reviews, err := s.repo.GetReviewsByWorkID(ctx, workID)
 	if err != nil {
-		return []models.WorkReview{}, nil
+		return nil, err
 	}
 	if reviews == nil {
 		return []models.WorkReview{}, nil
@@ -65,9 +65,6 @@ func (s *BookService) GetReviewsByWorkID(ctx context.Context, workID string) ([]
 }
 
 func (s *BookService) AddReview(ctx context.Context, workID, userID string, rating int, comment string, hasSpoiler bool) error {
-	if rating < 1 || rating > 5 {
-		return fmt.Errorf("оцінка має бути від 1 до 5")
-	}
 	return s.repo.AddReview(ctx, workID, userID, rating, comment, hasSpoiler)
 }
 
@@ -86,19 +83,21 @@ func (s *BookService) GetClubsByWorkID(ctx context.Context, workID string) ([]mo
 	return clubs, nil
 }
 
-func (s *BookService) AddReadingSession(ctx context.Context, userID, workID string, duration, pagesRead int) error {
+// ВИПРАВЛЕНО: Додано параметр notes string в кінець сигнатури та передано в репозиторій
+func (s *BookService) AddReadingSession(ctx context.Context, userID, workID string, duration, pagesRead int, notes string) error {
 	if pagesRead <= 0 {
 		return fmt.Errorf("кількість сторінок має бути більше 0")
 	}
-	return s.repo.SaveReadingSession(ctx, userID, workID, duration, pagesRead)
+	return s.repo.SaveReadingSession(ctx, userID, workID, duration, pagesRead, notes)
 }
 
-func (s *BookService) AddReadingSessionFull(ctx context.Context, userID, workID string, duration, pagesRead, startPage, endPage int) error {
+// ВИПРАВЛЕНО: Додано параметр notes string в кінець сигнатури та передано в репозиторій
+func (s *BookService) AddReadingSessionFull(ctx context.Context, userID, workID string, duration, pagesRead, startPage, endPage int, notes string) error {
 	pages := pagesRead
 	if pages <= 0 && endPage > startPage {
 		pages = endPage - startPage
 	}
-	return s.repo.SaveReadingSessionFull(ctx, userID, workID, duration, pages, startPage, endPage)
+	return s.repo.SaveReadingSessionFull(ctx, userID, workID, duration, pages, startPage, endPage, notes)
 }
 
 func (s *BookService) SearchAuthors(ctx context.Context, query string) ([]string, error) {
@@ -111,4 +110,19 @@ func (s *BookService) GetTopByYear(ctx context.Context, year, limit int) ([]mode
 		return []models.Book{}, nil
 	}
 	return books, nil
+}
+
+func (s *BookService) UpdatePersonalRating(ctx context.Context, userID, workID string, rating int) error {
+	return s.repo.UpdatePersonalRating(ctx, userID, workID, rating)
+}
+
+func (s *BookService) DeleteReview(ctx context.Context, reviewID, userID string) error {
+	return s.repo.DeleteReview(ctx, reviewID, userID)
+}
+
+func (s *BookService) UpdateReview(ctx context.Context, reviewID, userID, text string, hasSpoiler bool) error {
+	if text == "" {
+		return fmt.Errorf("текст відгуку не може бути порожнім")
+	}
+	return s.repo.UpdateReview(ctx, reviewID, userID, text, hasSpoiler)
 }

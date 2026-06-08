@@ -26,4 +26,5 @@ export const clubsApi = {
   // Повідомлення (REST fallback)
   getMessages: (id, before = '') => client(`/clubs/${id}/messages${before ? '?before=' + before : ''}`),
   deleteMessage:(clubId, msgId)  => client(`/clubs/${clubId}/messages/${msgId}`, { method: 'DELETE' }),
+editMessage:  (clubId, msgId, content) => client(`/clubs/${clubId}/messages/${msgId}`, { method: 'PATCH', body: { content } }),
 };

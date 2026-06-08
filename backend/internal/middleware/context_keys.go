@@ -1,7 +1,8 @@
 package middleware
 
-// Context keys used across the application.
+type ContextKey string
+
 const (
-	ContextUserID   = contextKey("user_id")
-	ContextUserRole = contextKey("user_role")
+	ContextUserID   ContextKey = "user_id"
+	ContextUserRole ContextKey = "user_role"
 )

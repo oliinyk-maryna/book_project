@@ -109,6 +109,9 @@ func (s *RecommendationService) GetByQuery(ctx context.Context, userID, query st
 	if idx := strings.Index(cleanResp, "{"); idx > 0 {
 		cleanResp = cleanResp[idx:]
 	}
+	if lastIdx := strings.LastIndex(cleanResp, "}"); lastIdx > 0 {
+		cleanResp = cleanResp[:lastIdx+1]
+	}
 	if err := json.Unmarshal([]byte(cleanResp), &parsed); err != nil {
 		return s.getFallback(ctx, limit)
 	}

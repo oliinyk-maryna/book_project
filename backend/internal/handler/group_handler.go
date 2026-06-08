@@ -92,8 +92,33 @@ func (h *GroupHandler) JoinByCode(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Системне повідомлення у чат (аналогічно JoinClub)
+	h.hub.BroadcastToClub(club.ID.String(), WSMessage{ // Додано .String()
+		Type:        "system",
+		ClubID:      club.ID.String(), // Додано .String()
+		Content:     "Новий учасник приєднався за посиланням",
+		MessageType: "system",
+	})
+
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(club)
+}
+
+// DELETE /api/clubs/:id — видалити клуб (тільки адмін)
+func (h *GroupHandler) DeleteClub(w http.ResponseWriter, r *http.Request) {
+	clubID := r.PathValue("id")
+	userID, ok := r.Context().Value(middleware.ContextUserID).(string)
+	if !ok {
+		http.Error(w, "Неавторизований", http.StatusUnauthorized)
+		return
+	}
+
+	if err := h.service.DeleteClub(r.Context(), clubID, userID); err != nil {
+		http.Error(w, err.Error(), http.StatusForbidden)
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
 }
 
 // POST /api/clubs/:id/join
@@ -314,13 +339,64 @@ func (h *GroupHandler) DeleteMessage(w http.ResponseWriter, r *http.Request) {
 	}
 
 	clubID := r.PathValue("id")
+	// Транслюємо тип "delete" — той самий що і через WS
 	h.hub.BroadcastToClub(clubID, WSMessage{
-		Type:      "delete_message",
+		Type:      "delete",
 		ClubID:    clubID,
 		MessageID: msgID,
+		ID:        msgID,
 	})
 
 	w.WriteHeader(http.StatusNoContent)
+}
+
+// PATCH /api/clubs/:id/messages/:msgid
+func (h *GroupHandler) EditMessage(w http.ResponseWriter, r *http.Request) {
+	msgID := r.PathValue("msgid")
+	if msgID == "" || msgID == "undefined" {
+		http.Error(w, "Невірний ID повідомлення", http.StatusBadRequest)
+		return
+	}
+
+	// Дістаємо ID поточного користувача з токена
+	userID, ok := r.Context().Value(middleware.ContextUserID).(string)
+	if !ok {
+		http.Error(w, "Неавторизований", http.StatusUnauthorized)
+		return
+	}
+
+	// Читаємо нове повідомлення
+	var req struct {
+		Content string `json:"content"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "Невірний JSON", http.StatusBadRequest)
+		return
+	}
+	if req.Content == "" {
+		http.Error(w, "Текст не може бути порожнім", http.StatusBadRequest)
+		return
+	}
+
+	// Викликаємо сервіс!
+	if err := h.service.EditMessage(r.Context(), msgID, userID, req.Content); err != nil {
+		// Якщо сталася помилка авторства, повертаємо 403 і текст помилки
+		http.Error(w, err.Error(), http.StatusForbidden)
+		return
+	}
+
+	// Розсилаємо всім у чат, що повідомлення змінилося
+	clubID := r.PathValue("id")
+	h.hub.BroadcastToClub(clubID, WSMessage{
+		Type:      "edit",
+		ClubID:    clubID,
+		MessageID: msgID,
+		ID:        msgID,
+		Content:   req.Content,
+		IsEdited:  true,
+	})
+
+	w.WriteHeader(http.StatusOK)
 }
 
 // POST /api/clubs/:id/invite
@@ -347,4 +423,61 @@ func (h *GroupHandler) InviteUser(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]string{"message": "Запрошення надіслано"})
+}
+
+// GET /api/me/invites
+func (h *GroupHandler) GetMyInvites(w http.ResponseWriter, r *http.Request) {
+	userID, ok := r.Context().Value(middleware.ContextUserID).(string)
+	if !ok {
+		http.Error(w, "Неавторизований", http.StatusUnauthorized)
+		return
+	}
+
+	invites, err := h.service.GetUserInvites(r.Context(), userID)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(invites)
+}
+
+// POST /api/invites/:id/accept
+// POST /api/invites/:id/accept
+func (h *GroupHandler) AcceptInvite(w http.ResponseWriter, r *http.Request) {
+	inviteID := r.PathValue("id")
+	userID, ok := r.Context().Value(middleware.ContextUserID).(string)
+	if !ok {
+		http.Error(w, "Неавторизований", http.StatusUnauthorized)
+		return
+	}
+
+	if err := h.service.AcceptInvite(r.Context(), inviteID, userID); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	// ВИПРАВЛЕНО: просто викликаємо метод окремим рядком
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(map[string]string{"message": "Запрошення прийнято, ви приєдналися до клубу"})
+}
+
+// POST /api/invites/:id/reject
+func (h *GroupHandler) RejectInvite(w http.ResponseWriter, r *http.Request) {
+	inviteID := r.PathValue("id")
+	userID, ok := r.Context().Value(middleware.ContextUserID).(string)
+	if !ok {
+		http.Error(w, "Неавторизований", http.StatusUnauthorized)
+		return
+	}
+
+	if err := h.service.RejectInvite(r.Context(), inviteID, userID); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	// ВИПРАВЛЕНО: просто викликаємо метод окремим рядком
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(map[string]string{"message": "Запрошення відхилено"})
 }

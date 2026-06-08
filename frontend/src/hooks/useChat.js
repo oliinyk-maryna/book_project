@@ -1,4 +1,3 @@
-
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { clubsApi } from '../api/clubs.api';
 import { API_URL } from '../config';
@@ -62,6 +61,16 @@ export const useChat = (clubId) => {
             }
           } else if (msg.type === 'system') {
             addMessage({ ...msg, id: Date.now().toString(), type: 'system' });
+          } else if (msg.type === 'edit') {
+            const editId = msg.message_id || msg.id;
+            setMessages(prev => prev.map(m =>
+              m.id === editId
+                ? { ...m, content: msg.content, is_edited: true }
+                : m
+            ));
+          } else if (msg.type === 'delete') {
+            const delId = msg.message_id || msg.id;
+            setMessages(prev => prev.filter(m => m.id !== delId));
           }
         } catch {}
       };

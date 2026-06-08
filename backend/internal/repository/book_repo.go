@@ -3,6 +3,7 @@ package repository
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strconv"
 	"strings"
 
@@ -94,23 +95,29 @@ func (r *BookRepository) GetAll(ctx context.Context, f models.BookFilters) ([]mo
 		args = append(args, "%"+f.Author+"%")
 		n++
 	}
-
 	// Сортування
 	switch f.Sort {
 	case "newest":
-		query += ` ORDER BY w.id, e.publication_date DESC NULLS LAST`
+		query = strings.Replace(query, "DISTINCT ON (w.id)", "DISTINCT ON (w.created_at, w.id)", 1)
+		query += ` ORDER BY w.created_at DESC, w.id`
 	case "popular":
-		query += ` ORDER BY w.id, w.total_ratings DESC, w.average_rating DESC`
+		// МАГІЯ ТУТ: Рахуємо кількість людей, які зараз читають цю книгу (статус 'reading')
+		query = strings.Replace(query, "DISTINCT ON (w.id)", "DISTINCT ON ((SELECT COUNT(*) FROM user_editions WHERE work_id = w.id AND status = 'reading'), w.id)", 1)
+		query += ` ORDER BY (SELECT COUNT(*) FROM user_editions WHERE work_id = w.id AND status = 'reading') DESC, w.id`
 	case "rating":
-		query += ` ORDER BY w.id, w.average_rating DESC NULLS LAST`
+		query = strings.Replace(query, "DISTINCT ON (w.id)", "DISTINCT ON (w.average_rating, w.id)", 1)
+		query += ` ORDER BY w.average_rating DESC NULLS LAST, w.id`
+	case "pages_asc":
+		query = strings.Replace(query, "DISTINCT ON (w.id)", "DISTINCT ON (e.page_count, w.id)", 1)
+		query += ` ORDER BY e.page_count ASC NULLS LAST, w.id`
+	case "pages_desc":
+		query = strings.Replace(query, "DISTINCT ON (w.id)", "DISTINCT ON (e.page_count, w.id)", 1)
+		query += ` ORDER BY e.page_count DESC NULLS LAST, w.id`
 	case "random":
 		query += ` ORDER BY w.id, RANDOM()`
-	case "pages_asc":
-		query += ` ORDER BY w.id, e.page_count ASC NULLS LAST`
-	case "pages_desc":
-		query += ` ORDER BY w.id, e.page_count DESC NULLS LAST`
 	default:
-		query += ` ORDER BY w.id, w.created_at DESC`
+		query = strings.Replace(query, "DISTINCT ON (w.id)", "DISTINCT ON (w.created_at, w.id)", 1)
+		query += ` ORDER BY w.created_at DESC, w.id`
 	}
 
 	limit := 60
@@ -161,23 +168,23 @@ func (r *BookRepository) GetByIDWithDetails(ctx context.Context, id string, user
 	}
 
 	query := `
-		SELECT DISTINCT ON (w.id)
-			w.id::text, w.title,
-			COALESCE(a.name, 'Невідомий автор'),
-			COALESCE(e.cover_url, ''),
-			COALESCE(g.name, ''),
-			COALESCE(w.description, ''),
-			COALESCE(e.page_count, 0),
-			COALESCE(e.publisher, ''),
-			COALESCE(e.publication_date::text, ''),
-			COALESCE(w.average_rating, 0),
-			COALESCE(w.total_ratings, 0)
-		FROM works w
-		LEFT JOIN authors a ON w.author_id = a.id
-		LEFT JOIN editions e ON w.id = e.work_id
-		LEFT JOIN work_genres wg ON w.id = wg.work_id
-		LEFT JOIN genres g ON wg.genre_id = g.id
-		WHERE w.id = $1`
+	SELECT 
+		w.id::text, w.title,
+		COALESCE(a.name, 'Невідомий автор'),
+		COALESCE(e.cover_url, ''),
+		-- ТУТ ФІКС ЖАНРІВ: збираємо всі через кому
+		COALESCE((SELECT string_agg(g2.name, ', ') FROM work_genres wg2 JOIN genres g2 ON wg2.genre_id = g2.id WHERE wg2.work_id = w.id), 'Не вказано'),
+		COALESCE(w.description, ''),
+		COALESCE(e.page_count, 0),
+		COALESCE(e.publisher, 'Не вказано'), -- ТУТ ФІКС ВИДАВНИЦТВА
+		COALESCE(e.publication_date::text, 'Не вказано'),
+		COALESCE(w.average_rating, 0),
+		COALESCE(w.total_ratings, 0)
+	FROM works w
+	LEFT JOIN authors a ON w.author_id = a.id
+	LEFT JOIN editions e ON w.id = e.work_id
+	WHERE w.id = $1
+	LIMIT 1`
 
 	var b models.BookDetails
 	var authorName, category string
@@ -200,21 +207,35 @@ func (r *BookRepository) GetByIDWithDetails(ctx context.Context, id string, user
 		b.Authors = []string{}
 	}
 
-	// Статус користувача
+	// Статус користувача — використовуємо work_id напряму (не через edition_id)
+	// Статус користувача — використовуємо work_id напряму (не через edition_id)
 	if userID != "" {
 		var status string
 		var currentPage, totalPages int
+		var notes, startedAt, finishedAt string
+		var personalRating int // <--- ЗМІНА 1: Змінна для зірочок
+
 		err := r.db.QueryRow(ctx, `
-			SELECT ue.status::text, ue.current_page, ue.total_pages
+			SELECT ue.status::text,
+			       COALESCE(ue.current_page, 0),
+			       COALESCE(ue.total_pages, 0),
+			       COALESCE(ue.notes, ''),
+			       COALESCE(ue.started_at::text, ''),
+			       COALESCE(ue.finished_at::text, ''),
+			       COALESCE(ue.personal_rating, 0) -- <--- ЗМІНА 2: Дістаємо оцінку з БД
 			FROM user_editions ue
-			JOIN editions e ON ue.edition_id = e.id
-			WHERE ue.user_id = $1::uuid AND e.work_id = $2
+			WHERE ue.user_id = $1::uuid AND ue.work_id = $2::uuid
 			LIMIT 1`, userID, parsedID,
-		).Scan(&status, &currentPage, &totalPages)
+		).Scan(&status, &currentPage, &totalPages, &notes, &startedAt, &finishedAt, &personalRating) // <--- ЗМІНА 3: Скануємо нове поле
+
 		if err == nil {
 			b.UserStatus = status
 			b.CurrentPage = currentPage
 			b.TotalPages = totalPages
+			b.Notes = notes
+			b.StartedAt = startedAt
+			b.FinishedAt = finishedAt
+			b.PersonalRating = personalRating // <--- ЗМІНА 4: Передаємо у модель
 		}
 	}
 
@@ -276,31 +297,40 @@ func (r *BookRepository) GetFilterOptions(ctx context.Context) (*models.FilterOp
 
 func (r *BookRepository) GetReviewsByWorkID(ctx context.Context, workID string) ([]models.WorkReview, error) {
 	rows, err := r.db.Query(ctx, `
-		SELECT br.id::text, br.user_id::text, u.username,
+		SELECT br.id::text, br.user_id::text, 
+			COALESCE(u.username, 'Читач'),
 			COALESCE(u.avatar_url::text, ''),
-			br.rating,
+			-- ТЯГНЕМО ОЦІНКУ З ПОЛИЦІ КОРИСТУВАЧА:
+			COALESCE((SELECT personal_rating FROM user_editions ue WHERE ue.user_id = br.user_id AND ue.work_id = br.work_id LIMIT 1), 0)::int,
 			COALESCE(br.review_text, ''),
 			COALESCE(br.has_spoiler, false),
-			COALESCE((SELECT COUNT(*) FROM review_likes WHERE review_id=br.id), 0),
+			0::int, -- Тимчасовий нуль для лайків
 			br.created_at
-		FROM book_reviews br
+		FROM work_reviews br
 		JOIN users u ON br.user_id = u.id
 		WHERE br.work_id = $1::uuid
 		ORDER BY br.created_at DESC
 		LIMIT 50`, workID)
+
+	// Якщо UUID невалідний або впала база — повертаємо помилку!
 	if err != nil {
-		return []models.WorkReview{}, nil
+		return nil, err
 	}
 	defer rows.Close()
 
 	var reviews []models.WorkReview
 	for rows.Next() {
 		var rev models.WorkReview
-		if err := rows.Scan(
+		err := rows.Scan(
 			&rev.ID, &rev.UserID, &rev.UserName, &rev.AvatarURL,
 			&rev.Rating, &rev.ReviewText, &rev.HasSpoiler, &rev.LikesCount, &rev.CreatedAt,
-		); err == nil {
+		)
+
+		if err == nil {
 			reviews = append(reviews, rev)
+		} else {
+			// Тепер ви хоча б побачите у логах сервера, якщо щось зламається
+			fmt.Printf("Помилка сканування відгуку: %v\n", err)
 		}
 	}
 	if reviews == nil {
@@ -309,23 +339,23 @@ func (r *BookRepository) GetReviewsByWorkID(ctx context.Context, workID string) 
 	return reviews, nil
 }
 
-func (r *BookRepository) AddReview(ctx context.Context, workID, userID string, rating int, comment string, hasSpoiler bool) error {
+func (r *BookRepository) AddReview(ctx context.Context, workID, userID string, _ int, comment string, hasSpoiler bool) error {
+	// 1. Просто додаємо текст відгуку. Рейтинг ігноруємо.
 	_, err := r.db.Exec(ctx, `
-		INSERT INTO book_reviews (work_id, user_id, rating, review_text, has_spoiler)
-		VALUES ($1::uuid, $2::uuid, $3, $4, $5)
-		ON CONFLICT (work_id, user_id) DO UPDATE
-		SET rating=$3, review_text=$4, has_spoiler=$5, updated_at=NOW()`,
-		workID, userID, rating, comment, hasSpoiler)
+		INSERT INTO work_reviews (work_id, user_id, review_text, has_spoiler)
+		VALUES ($1::uuid, $2::uuid, $3, $4)`,
+		workID, userID, comment, hasSpoiler)
 	if err != nil {
 		return err
 	}
-	// Перераховуємо середній рейтинг
-	r.db.Exec(ctx, `
-		UPDATE works SET
-			average_rating = (SELECT AVG(rating) FROM book_reviews WHERE work_id=$1::uuid),
-			total_ratings  = (SELECT COUNT(*) FROM book_reviews WHERE work_id=$1::uuid)
-		WHERE id=$1::uuid`, workID)
+
+	// 2. Фіксуємо активність
+	r.db.Exec(ctx, `INSERT INTO activity_feed(actor_id, type, work_id) VALUES($1::uuid, 'review', $2::uuid) ON CONFLICT DO NOTHING`, userID, workID)
+
 	return nil
+}
+func (r *BookRepository) AdminDeleteReview(ctx context.Context, reviewID string) {
+	r.db.Exec(ctx, `DELETE FROM work_reviews WHERE id=$1::uuid`, reviewID)
 }
 
 func (r *BookRepository) LikeReview(ctx context.Context, reviewID, userID, emoji string) error {
@@ -366,35 +396,41 @@ func (r *BookRepository) GetClubsByWorkID(ctx context.Context, workID string) ([
 }
 
 // SaveReadingSession — зберігає сесію читання з початковою і кінцевою сторінкою
-func (r *BookRepository) SaveReadingSession(ctx context.Context, userID, workID string, duration, pagesRead int) error {
-	return r.SaveReadingSessionFull(ctx, userID, workID, duration, pagesRead, 0, 0)
+func (r *BookRepository) SaveReadingSession(ctx context.Context, userID, workID string, duration, pagesRead int, notes string) error {
+	// Передаємо notes замість "" в кінці
+	return r.SaveReadingSessionFull(ctx, userID, workID, duration, pagesRead, 0, 0, notes)
 }
-
-func (r *BookRepository) SaveReadingSessionFull(ctx context.Context, userID, workID string, duration, pagesRead, startPage, endPage int) error {
-	_, err := r.db.Exec(ctx, `
-		INSERT INTO reading_sessions(user_id, work_id, duration_seconds, pages_read, start_page, end_page)
-		VALUES($1::uuid, $2::uuid, $3, $4, $5, $6)`,
-		userID, workID, duration, pagesRead, startPage, endPage)
+func (r *BookRepository) SaveReadingSessionFull(ctx context.Context, userID, workID string, duration, pagesRead, startPage, endPage int, notes string) error {
+	// 1. Обов'язково знаходимо ID видання
+	var editionID string
+	err := r.db.QueryRow(ctx, `SELECT id FROM editions WHERE work_id = $1::uuid LIMIT 1`, workID).Scan(&editionID)
 	if err != nil {
-		return err
+		return fmt.Errorf("не знайдено видання для роботи %s: %w", workID, err)
 	}
 
-	// Оновлюємо current_page якщо endPage > 0
-	if endPage > 0 {
-		r.db.Exec(ctx, `
-			UPDATE user_editions SET current_page=$1, updated_at=NOW()
-			WHERE user_id=$2::uuid AND edition_id=(
-				SELECT id FROM editions WHERE work_id=$3::uuid LIMIT 1
-			) AND current_page < $1`, endPage, userID, workID)
-	} else if pagesRead > 0 {
-		r.db.Exec(ctx, `
-			UPDATE user_editions
-			SET current_page = LEAST(total_pages, COALESCE(current_page,0) + $1), updated_at=NOW()
-			WHERE user_id=$2::uuid AND edition_id=(
-				SELECT id FROM editions WHERE work_id=$3::uuid LIMIT 1
-			)`, pagesRead, userID, workID)
+	// 2. Зберігаємо сесію з повною датою
+	_, err = r.db.Exec(ctx, `
+		INSERT INTO reading_sessions(user_id, work_id, edition_id, duration_seconds, pages_read, start_page, end_page, session_date)
+		VALUES($1::uuid, $2::uuid, $3::uuid, $4, $5, $6, $7, CURRENT_DATE)`,
+		userID, workID, editionID, duration, pagesRead, startPage, endPage)
+
+	if err != nil {
+		return fmt.Errorf("помилка INSERT в reading_sessions: %w", err)
 	}
-	return nil
+
+	// 3. Оновлюємо поточну сторінку ТА нотатки в user_editions
+	// Зауваження: Ми прибираємо умову (if endPage > 0), щоб нотатки зберігалися,
+	// навіть якщо користувач просто написав текст, але не перегортав сторінку.
+	_, err = r.db.Exec(ctx, `
+		UPDATE user_editions 
+		SET current_page = CASE WHEN $1 > 0 THEN $1 ELSE current_page END,
+		    notes = $2, 
+		    status = 'reading'::reading_status, 
+		    updated_at = NOW()
+		WHERE user_id = $3::uuid AND edition_id = $4::uuid`,
+		endPage, notes, userID, editionID)
+
+	return err
 }
 
 func (r *BookRepository) GetUserBookStatus(ctx context.Context, userID, workID string) (string, error) {
@@ -623,90 +659,6 @@ type AdminCreateBookParams struct {
 	Language    string
 }
 
-func (r *BookRepository) AdminCreateBook(ctx context.Context, p AdminCreateBookParams) (string, error) {
-	tx, err := r.db.Begin(ctx)
-	if err != nil {
-		return "", err
-	}
-	defer tx.Rollback(ctx)
-
-	authorName := "Невідомий автор"
-	if len(p.Authors) > 0 && p.Authors[0] != "" {
-		authorName = p.Authors[0]
-	}
-
-	var authorID string
-	if err := tx.QueryRow(ctx, `SELECT id::text FROM authors WHERE name=$1 LIMIT 1`, authorName).Scan(&authorID); err != nil {
-		if err := tx.QueryRow(ctx, `INSERT INTO authors(name) VALUES($1) RETURNING id::text`, authorName).Scan(&authorID); err != nil {
-			return "", err
-		}
-	}
-
-	var workID string
-	if err := tx.QueryRow(ctx, `
-		INSERT INTO works(title, author_id, description)
-		VALUES($1, $2::uuid, $3) RETURNING id::text`,
-		p.Title, authorID, p.Description).Scan(&workID); err != nil {
-		return "", err
-	}
-
-	// Жанри
-	for _, genre := range p.Genres {
-		var genreID int
-		if err := tx.QueryRow(ctx, `SELECT id FROM genres WHERE name=$1 LIMIT 1`, genre).Scan(&genreID); err != nil {
-			if err := tx.QueryRow(ctx, `INSERT INTO genres(name) VALUES($1) RETURNING id`, genre).Scan(&genreID); err != nil {
-				continue
-			}
-		}
-		tx.Exec(ctx, `INSERT INTO work_genres(work_id,genre_id) VALUES($1::uuid,$2) ON CONFLICT DO NOTHING`, workID, genreID)
-	}
-
-	// Мова
-	var langID *int
-	if p.Language != "" {
-		var id int
-		if err := tx.QueryRow(ctx, `SELECT id FROM languages WHERE name=$1 OR code=$1 LIMIT 1`, p.Language).Scan(&id); err == nil {
-			langID = &id
-		}
-	}
-
-	pageCount := p.PageCount
-	if pageCount <= 0 {
-		pageCount = 1
-	}
-
-	var pubDate *string
-	if p.PubDate != "" {
-		pubDate = &p.PubDate
-	}
-
-	tx.Exec(ctx, `
-		INSERT INTO editions(work_id, cover_url, page_count, publisher, publication_date, language_id, is_primary)
-		VALUES($1::uuid, $2, $3, $4, $5::date, $6, true)`,
-		workID, p.CoverURL, pageCount, p.Publisher, pubDate, langID)
-
-	return workID, tx.Commit(ctx)
-}
-
-func (r *BookRepository) AdminUpdateBook(ctx context.Context, workID string, title, description, coverURL *string, pageCount *int, publisher *string) error {
-	if title != nil {
-		r.db.Exec(ctx, `UPDATE works SET title=$1 WHERE id=$2::uuid`, *title, workID)
-	}
-	if description != nil {
-		r.db.Exec(ctx, `UPDATE works SET description=$1 WHERE id=$2::uuid`, *description, workID)
-	}
-	if coverURL != nil {
-		r.db.Exec(ctx, `UPDATE editions SET cover_url=$1 WHERE work_id=$2::uuid`, *coverURL, workID)
-	}
-	if pageCount != nil {
-		r.db.Exec(ctx, `UPDATE editions SET page_count=$1 WHERE work_id=$2::uuid`, *pageCount, workID)
-	}
-	if publisher != nil {
-		r.db.Exec(ctx, `UPDATE editions SET publisher=$1 WHERE work_id=$2::uuid`, *publisher, workID)
-	}
-	return nil
-}
-
 func (r *BookRepository) AdminDeleteWork(ctx context.Context, workID string) error {
 	_, err := r.db.Exec(ctx, `DELETE FROM works WHERE id=$1::uuid`, workID)
 	return err
@@ -716,17 +668,13 @@ func (r *BookRepository) AdminDeleteBook(ctx context.Context, workID string) err
 	return r.AdminDeleteWork(ctx, workID)
 }
 
-func (r *BookRepository) AdminDeleteReview(ctx context.Context, reviewID string) {
-	r.db.Exec(ctx, `DELETE FROM book_reviews WHERE id=$1::uuid`, reviewID)
-}
-
 func (r *BookRepository) AdminDeleteThread(ctx context.Context, threadID string) {
 	r.db.Exec(ctx, `DELETE FROM book_discussions WHERE id=$1::uuid`, threadID)
 }
 
 func (r *BookRepository) AdminGetPlatformStats(ctx context.Context) (map[string]interface{}, error) {
 	stats := make(map[string]interface{})
-	var count int // Тимчасова змінна
+	var count int
 
 	_ = r.db.QueryRow(ctx, `SELECT COUNT(*) FROM works`).Scan(&count)
 	stats["total_books"] = count
@@ -737,11 +685,24 @@ func (r *BookRepository) AdminGetPlatformStats(ctx context.Context) (map[string]
 	_ = r.db.QueryRow(ctx, `SELECT COUNT(*) FROM work_reviews`).Scan(&count)
 	stats["total_reviews"] = count
 
-	_ = r.db.QueryRow(ctx, `SELECT COUNT(*) FROM clubs`).Scan(&count)
+	// groups — реальна назва таблиці (clubs — аліас у фронті)
+	_ = r.db.QueryRow(ctx, `SELECT COUNT(*) FROM groups`).Scan(&count)
 	stats["total_clubs"] = count
 
-	_ = r.db.QueryRow(ctx, `SELECT COUNT(*) FROM user_books`).Scan(&count)
+	_ = r.db.QueryRow(ctx, `SELECT COUNT(*) FROM user_editions`).Scan(&count)
 	stats["total_shelf_items"] = count
+
+	// Нові реєстрації за останні 30 днів
+	_ = r.db.QueryRow(ctx, `SELECT COUNT(*) FROM users WHERE created_at > NOW() - INTERVAL '30 days'`).Scan(&count)
+	stats["new_users_30d"] = count
+
+	// Активні читачі (оновлювали прогрес за тиждень)
+	_ = r.db.QueryRow(ctx, `SELECT COUNT(DISTINCT user_id) FROM user_editions WHERE updated_at > NOW() - INTERVAL '7 days'`).Scan(&count)
+	stats["active_readers_7d"] = count
+
+	// Відгуки за останній місяць
+	_ = r.db.QueryRow(ctx, `SELECT COUNT(*) FROM work_reviews WHERE created_at > NOW() - INTERVAL '30 days'`).Scan(&count)
+	stats["new_reviews_30d"] = count
 
 	return stats, nil
 }
@@ -832,3 +793,361 @@ func (r *BookRepository) TrackActivity(ctx context.Context, userID, workID, actT
 
 // Використовується у strings
 var _ = strings.ToLower
+
+func (r *BookRepository) UpdatePersonalRating(ctx context.Context, userID, workID string, rating int) error {
+	// 1. Спочатку пробуємо ОНОВИТИ оцінку, якщо книга вже є на полиці
+	res, err := r.db.Exec(ctx, `
+		UPDATE user_editions 
+		SET personal_rating = $1, 
+		    updated_at = NOW() 
+		WHERE user_id = $2::uuid AND work_id = $3::uuid`,
+		rating, userID, workID)
+
+	if err != nil {
+		return fmt.Errorf("помилка UPDATE оцінки: %w", err)
+	}
+
+	// 2. Якщо rowsAffected == 0, значить запису в таблиці ще немає.
+	// Тоді просто створюємо його зі статусом 'planned' (в планах)
+	if res.RowsAffected() == 0 {
+		_, err = r.db.Exec(ctx, `
+			INSERT INTO user_editions (user_id, work_id, personal_rating, status, updated_at)
+			VALUES ($1::uuid, $2::uuid, $3, 'planned', NOW())`,
+			userID, workID, rating)
+
+		if err != nil {
+			return fmt.Errorf("помилка INSERT оцінки: %w", err)
+		}
+	}
+
+	// 3. ПЕРЕРАХОВУЄМО СЕРЕДНІЙ РЕЙТИНГ КНИГИ (залишається без змін)
+	_, err = r.db.Exec(ctx, `
+		UPDATE works SET
+			average_rating = COALESCE((SELECT AVG(personal_rating) FROM user_editions WHERE work_id=$1::uuid AND personal_rating > 0), 0),
+			total_ratings  = COALESCE((SELECT COUNT(personal_rating) FROM user_editions WHERE work_id=$1::uuid AND personal_rating > 0), 0)
+		WHERE id=$1::uuid`, workID)
+
+	return err
+}
+func (r *BookRepository) DeleteReview(ctx context.Context, reviewID, userID string) error {
+	// Видаляємо відгук, тільки якщо він належить цьому користувачу
+	res, err := r.db.Exec(ctx, `DELETE FROM work_reviews WHERE id=$1::uuid AND user_id=$2::uuid`, reviewID, userID)
+	if err != nil {
+		return err
+	}
+	if res.RowsAffected() == 0 {
+		return errors.New("відгук не знайдено, або у вас немає прав на його видалення")
+	}
+	return nil
+}
+
+func (r *BookRepository) UpdateReview(ctx context.Context, reviewID, userID, text string, hasSpoiler bool) error {
+	res, err := r.db.Exec(ctx, `
+		UPDATE work_reviews 
+		SET review_text=$1, has_spoiler=$2, updated_at=NOW() 
+		WHERE id=$3::uuid AND user_id=$4::uuid`,
+		text, hasSpoiler, reviewID, userID)
+	if err != nil {
+		return err
+	}
+	if res.RowsAffected() == 0 {
+		return errors.New("відгук не знайдено, або у вас немає прав на його редагування")
+	}
+	return nil
+}
+
+func (r *BookRepository) AdminCreateBook(ctx context.Context, p AdminCreateBookParams) (string, error) {
+	tx, err := r.db.Begin(ctx)
+	if err != nil {
+		return "", err
+	}
+	defer tx.Rollback(ctx)
+
+	authorName := "Невідомий автор"
+	if len(p.Authors) > 0 && p.Authors[0] != "" {
+		authorName = p.Authors[0]
+	}
+
+	var authorID string
+	err = tx.QueryRow(ctx, `SELECT id::text FROM authors WHERE name=$1 LIMIT 1`, authorName).Scan(&authorID)
+	if err != nil {
+		err = tx.QueryRow(ctx, `INSERT INTO authors(name) VALUES($1) RETURNING id::text`, authorName).Scan(&authorID)
+		if err != nil {
+			return "", fmt.Errorf("помилка автора: %v", err)
+		}
+	}
+
+	var workID string
+	err = tx.QueryRow(ctx, `
+		INSERT INTO works(title, author_id, description)
+		VALUES($1, $2::uuid, $3) RETURNING id::text`,
+		p.Title, authorID, p.Description).Scan(&workID)
+	if err != nil {
+		return "", fmt.Errorf("помилка works: %v", err)
+	}
+
+	// Жанри
+	for _, genre := range p.Genres {
+		var genreID int
+		err = tx.QueryRow(ctx, `SELECT id FROM genres WHERE name=$1 LIMIT 1`, genre).Scan(&genreID)
+		if err != nil {
+			err = tx.QueryRow(ctx, `INSERT INTO genres(name) VALUES($1) RETURNING id`, genre).Scan(&genreID)
+			if err != nil {
+				continue
+			}
+		}
+		_, err = tx.Exec(ctx, `INSERT INTO work_genres(work_id,genre_id) VALUES($1::uuid,$2) ON CONFLICT DO NOTHING`, workID, genreID)
+		if err != nil {
+			return "", fmt.Errorf("помилка work_genres: %v", err)
+		}
+	}
+
+	var langID *int
+	if p.Language != "" {
+		var id int
+		if err := tx.QueryRow(ctx, `SELECT id FROM languages WHERE name=$1 OR code=$1 LIMIT 1`, p.Language).Scan(&id); err == nil {
+			langID = &id
+		}
+	}
+
+	pageCount := p.PageCount
+	if pageCount <= 0 {
+		pageCount = 1
+	}
+
+	var pubDate *string
+	if p.PubDate != "" {
+		pubDate = &p.PubDate
+	}
+
+	_, err = tx.Exec(ctx, `
+		INSERT INTO editions(work_id, cover_url, page_count, publisher, publication_date, language_id, is_primary)
+		VALUES($1::uuid, $2, $3, $4, $5::date, $6, true)`,
+		workID, p.CoverURL, pageCount, p.Publisher, pubDate, langID)
+	if err != nil {
+		return "", fmt.Errorf("помилка editions: %v", err)
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return "", fmt.Errorf("помилка транзакції: %v", err)
+	}
+
+	return workID, nil
+}
+
+func (r *BookRepository) AdminUpdateBook(ctx context.Context, workID string, p AdminCreateBookParams) error {
+	tx, err := r.db.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback(ctx)
+
+	// 1. Оновлення основної таблиці works
+	_, err = tx.Exec(ctx, `UPDATE works SET title=$1, description=$2 WHERE id=$3::uuid`, p.Title, p.Description, workID)
+	if err != nil {
+		return fmt.Errorf("помилка оновлення works: %v", err)
+	}
+
+	// 2. Оновлення видання (дати, сторінки, обкладинка)
+	var pubDate *string
+	if p.PubDate != "" {
+		pubDate = &p.PubDate
+	}
+
+	_, err = tx.Exec(ctx, `
+		UPDATE editions 
+		SET cover_url=$1, page_count=$2, publisher=$3, publication_date=$4::date
+		WHERE work_id=$5::uuid`,
+		p.CoverURL, p.PageCount, p.Publisher, pubDate, workID)
+	if err != nil {
+		return fmt.Errorf("помилка оновлення editions: %v", err)
+	}
+
+	// 3. Оновлення автора
+	if len(p.Authors) > 0 && p.Authors[0] != "" {
+		authorName := p.Authors[0]
+		var authorID string
+		err = tx.QueryRow(ctx, `SELECT id::text FROM authors WHERE name=$1 LIMIT 1`, authorName).Scan(&authorID)
+		if err != nil {
+			err = tx.QueryRow(ctx, `INSERT INTO authors(name) VALUES($1) RETURNING id::text`, authorName).Scan(&authorID)
+		}
+		if err == nil {
+			tx.Exec(ctx, `UPDATE works SET author_id=$1::uuid WHERE id=$2::uuid`, authorID, workID)
+		}
+	}
+
+	// 4. Оновлення жанрів
+	if len(p.Genres) > 0 {
+		tx.Exec(ctx, `DELETE FROM work_genres WHERE work_id=$1::uuid`, workID)
+		for _, genre := range p.Genres {
+			var genreID int
+			err = tx.QueryRow(ctx, `SELECT id FROM genres WHERE name=$1 LIMIT 1`, genre).Scan(&genreID)
+			if err != nil {
+				err = tx.QueryRow(ctx, `INSERT INTO genres(name) VALUES($1) RETURNING id`, genre).Scan(&genreID)
+			}
+			if err == nil {
+				tx.Exec(ctx, `INSERT INTO work_genres(work_id,genre_id) VALUES($1::uuid,$2) ON CONFLICT DO NOTHING`, workID, genreID)
+			}
+		}
+	}
+
+	return tx.Commit(ctx)
+}
+
+// AdminListBooks — оптимізований запит для адмінки з пагінацією та сортуванням
+func (r *BookRepository) AdminListBooks(ctx context.Context, page, limit int, sortField, sortOrder, search string) ([]models.Book, int, error) {
+	offset := (page - 1) * limit
+
+	// Захист від SQL-ін'єкцій (валідація полів)
+	dbSortField := "w.created_at"
+	switch sortField {
+	case "title":
+		dbSortField = "w.title"
+	case "author":
+		dbSortField = "a.name"
+	}
+
+	if sortOrder != "ASC" && sortOrder != "DESC" {
+		sortOrder = "DESC"
+	}
+
+	// 1. Рахуємо загальну кількість (для пагінації)
+	var totalCount int
+	countQuery := "SELECT COUNT(DISTINCT w.id) FROM works w LEFT JOIN authors a ON w.author_id = a.id"
+	var args []interface{}
+
+	if search != "" {
+		countQuery += " WHERE w.title ILIKE $1 OR a.name ILIKE $1"
+		args = append(args, "%"+search+"%")
+	}
+
+	err := r.db.QueryRow(ctx, countQuery, args...).Scan(&totalCount)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	// 2. Отримуємо дані для конкретної сторінки
+	query := fmt.Sprintf(`
+		SELECT DISTINCT ON (%s, w.id)
+			w.id::text, w.title,
+			COALESCE(a.name, 'Невідомий автор'),
+			COALESCE(e.cover_url, ''),
+			COALESCE(g.name, '')
+		FROM works w
+		LEFT JOIN authors a ON w.author_id = a.id
+		LEFT JOIN editions e ON w.id = e.work_id
+		LEFT JOIN work_genres wg ON w.id = wg.work_id
+		LEFT JOIN genres g ON wg.genre_id = g.id
+	`, dbSortField)
+
+	if search != "" {
+		query += ` WHERE (w.title ILIKE $1 OR a.name ILIKE $1)`
+	}
+
+	query += fmt.Sprintf(` ORDER BY %s %s, w.id ASC LIMIT $%d OFFSET $%d`, dbSortField, sortOrder, len(args)+1, len(args)+2)
+	args = append(args, limit, offset)
+
+	rows, err := r.db.Query(ctx, query, args...)
+	if err != nil {
+		return nil, 0, err
+	}
+	defer rows.Close()
+
+	var books []models.Book
+	for rows.Next() {
+		var b models.Book
+		var author, category string
+		if err := rows.Scan(&b.ID, &b.Title, &author, &b.CoverURL, &category); err != nil {
+			continue
+		}
+		b.Category = category
+		b.Authors = []string{author}
+		books = append(books, b)
+	}
+	if books == nil {
+		books = []models.Book{}
+	}
+	return books, totalCount, nil
+}
+
+// AdminListReviews — дістає всі відгуки для адмінки
+func (r *BookRepository) AdminListReviews(ctx context.Context, limit int) ([]models.Review, error) {
+	query := `
+		SELECT 
+			r.id, 
+			r.user_id, 
+			COALESCE(u.username, 'Unknown') as username,
+			COALESCE(r.rating, 0) as rating, 
+			COALESCE(r.review_text, '') as review_text,
+			r.created_at
+		FROM work_reviews r
+		LEFT JOIN users u ON r.user_id = u.id
+		ORDER BY r.created_at DESC
+		LIMIT $1`
+
+	rows, err := r.db.Query(ctx, query, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var reviews []models.Review
+	for rows.Next() {
+		var rev models.Review
+		var rating int
+		err := rows.Scan(
+			&rev.ID,
+			&rev.UserID,
+			&rev.Username,
+			&rating,
+			&rev.ReviewText,
+			&rev.CreatedAt,
+		)
+
+		if err == nil {
+			rev.Rating = &rating
+			reviews = append(reviews, rev)
+		}
+	}
+
+	if reviews == nil {
+		reviews = []models.Review{}
+	}
+
+	return reviews, nil
+}
+
+// AdminListClubs — дістає всі клуби для адмінки
+func (r *BookRepository) AdminListClubs(ctx context.Context, limit int) ([]map[string]interface{}, error) {
+	query := `
+		SELECT g.id, g.name, g.status, COALESCE(u.username, 'Unknown'), COUNT(gm.user_id)
+		FROM groups g
+		LEFT JOIN users u ON g.creator_id = u.id
+		LEFT JOIN group_members gm ON g.id = gm.group_id
+		GROUP BY g.id, u.username
+		ORDER BY g.created_at DESC
+		LIMIT $1`
+	rows, err := r.db.Query(ctx, query, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var clubs []map[string]interface{}
+	for rows.Next() {
+		var id, name, status, creator string
+		var count int
+		if err := rows.Scan(&id, &name, &status, &creator, &count); err == nil {
+			clubs = append(clubs, map[string]interface{}{
+				"id": id, "name": name, "status": status, "creator": creator, "members_count": count,
+			})
+		}
+	}
+	return clubs, nil
+}
+
+// AdminForceDeleteClub — видалення клубу адміністратором
+func (r *BookRepository) AdminForceDeleteClub(ctx context.Context, clubID string) error {
+	_, err := r.db.Exec(ctx, "DELETE FROM groups WHERE id = $1::uuid", clubID)
+	return err
+}

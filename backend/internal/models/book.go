@@ -5,18 +5,21 @@ import (
 )
 
 type Book struct {
-	ID          string   `json:"id"`
-	GoogleID    string   `json:"google_id,omitempty"`
-	Title       string   `json:"title"`
-	Description string   `json:"description,omitempty"`
-	Author      string   `json:"-"`
-	Authors     []string `json:"authors"`
-	CoverURL    string   `json:"cover_url"`
-	Source      string   `json:"source,omitempty"`
-	Category    string   `json:"category,omitempty"`
-	Status      string   `json:"status,omitempty"`
-	PageCount   int      `json:"page_count,omitempty"`
-	CurrentPage int      `json:"current_page,omitempty"`
+	ID              string   `json:"id"`
+	GoogleID        string   `json:"google_id,omitempty"`
+	Title           string   `json:"title"`
+	Description     string   `json:"description,omitempty"`
+	Author          string   `json:"-"`
+	Authors         []string `json:"authors"`
+	CoverURL        string   `json:"cover_url"`
+	Source          string   `json:"source,omitempty"`
+	Category        string   `json:"category,omitempty"`
+	Genres          []string `json:"genres"`
+	Status          string   `json:"status,omitempty"`
+	PageCount       int      `json:"page_count,omitempty"`
+	Publisher       string   `json:"publisher,omitempty"`
+	PublicationDate string   `json:"publication_date,omitempty"`
+	CurrentPage     int      `json:"current_page,omitempty"`
 }
 
 type UnifiedSearchResult struct {
@@ -92,7 +95,7 @@ type Review struct {
 	UserID     string    `json:"user_id"`
 	Username   string    `json:"username"`
 	AvatarURL  string    `json:"avatar_url,omitempty"`
-	Rating     int       `json:"rating"`
+	Rating     *int      `json:"rating,omitempty"`
 	ReviewText string    `json:"review_text,omitempty"`
 	HasSpoiler bool      `json:"has_spoiler"`
 	CreatedAt  time.Time `json:"created_at"`
@@ -129,8 +132,13 @@ type BookDetails struct {
 	UserStatus      string     `json:"user_status,omitempty"`
 	CurrentPage     int        `json:"current_page,omitempty"`
 	TotalPages      int        `json:"total_pages,omitempty"`
+	Notes           string     `json:"notes,omitempty"`
+	StartedAt       string     `json:"started_at,omitempty"`
+	FinishedAt      string     `json:"finished_at,omitempty"`
 	Clubs           []BookClub `json:"clubs,omitempty"`
 	IsMember        bool       `json:"is_member,omitempty"`
+
+	PersonalRating int `json:"personal_rating,omitempty"`
 }
 
 type WorkReview struct {

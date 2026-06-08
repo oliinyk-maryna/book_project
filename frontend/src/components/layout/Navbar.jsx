@@ -10,9 +10,8 @@ export default function Navbar({ onNavigate, isLoggedIn }) {
     { id: 'home',      icon: Home,     label: 'Головна' },
     { id: 'discover',  icon: Search,   label: 'Пошук'   },
     { id: 'library',   icon: BookOpen, label: 'Полиця', auth: true },
-    { id: 'clubs',     icon: Users,    label: 'Клуби'   },
-    { id: 'analytics', icon: BarChart2,label: 'Стат.',  auth: true },
-    { id: 'profile',   icon: User,     label: 'Профіль', auth: true },
+    { id: 'clubs',     icon: Users,    label: 'Спільноти'   },
+    { id: 'analytics', icon: BarChart2,label: 'Статистика',  auth: true },
   ];
 
   return (

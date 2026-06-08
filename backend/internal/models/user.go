@@ -14,6 +14,11 @@ type User struct {
 	Role         string    `json:"role,omitempty"`
 	AvatarURL    *string   `json:"avatar_url,omitempty"`
 	Bio          *string   `json:"bio,omitempty"`
-	CreatedAt    time.Time `json:"created_at"`
-	UpdatedAt    time.Time `json:"updated_at"`
+
+	// ДОДАНІ ПОЛЯ:
+	FollowersCount int `json:"followers_count"`
+	FollowingCount int `json:"following_count"`
+
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
 }

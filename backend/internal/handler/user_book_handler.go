@@ -60,7 +60,6 @@ func (h *UserBookHandler) GetUserBooks(w http.ResponseWriter, r *http.Request) {
 
 	books, err := h.userBookService.GetUserBooks(r.Context(), userID)
 	if err != nil {
-		// Повертаємо порожній масив, не помилку — щоб фронт не падав
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode([]interface{}{})
 		return
@@ -87,51 +86,56 @@ func (h *UserBookHandler) AddWorkToShelf(w http.ResponseWriter, r *http.Request)
 	var req struct {
 		Status string `json:"status"`
 	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.Status == "" {
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "Помилка читання запиту", http.StatusBadRequest)
+		return
+	}
+	if req.Status == "" {
 		req.Status = "planned"
 	}
 
-	err := h.userBookService.AddWorkToShelf(r.Context(), userID, workID, req.Status)
-	if err != nil {
+	if err := h.userBookService.AddWorkToShelf(r.Context(), userID, workID, req.Status); err != nil {
 		http.Error(w, "Помилка збереження: "+err.Error(), http.StatusInternalServerError)
 		return
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]string{"message": "Статус книги оновлено!"})
+	w.WriteHeader(http.StatusCreated)
+	json.NewEncoder(w).Encode(map[string]string{"message": "Книгу додано на полицю!"})
 }
 
-// PATCH /api/me/books/{id}/progress — оновити прогрес читання
+// PATCH /api/me/books/{id}/progress — оновити прогрес, статус, нотатки, дати
+// PATCH /api/me/books/{id}/progress
 func (h *UserBookHandler) UpdateProgress(w http.ResponseWriter, r *http.Request) {
-	userID, ok := r.Context().Value(middleware.ContextUserID).(string)
-	if !ok {
-		http.Error(w, "Неавторизований доступ", http.StatusUnauthorized)
-		return
-	}
-
 	workID := r.PathValue("id")
-	if workID == "" {
-		http.Error(w, "ID книги обов'язковий", http.StatusBadRequest)
+	// Використовуємо контекст для авторизації
+	userID, ok := r.Context().Value(middleware.ContextUserID).(string)
+	if !ok || userID == "" {
+		http.Error(w, "Неавторизований", http.StatusUnauthorized)
 		return
 	}
 
 	var req struct {
 		CurrentPage int    `json:"current_page"`
 		Status      string `json:"status"`
+		Notes       string `json:"notes"`
+		StartDate   string `json:"start_date"`
+		EndDate     string `json:"end_date"`
 	}
+
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, "Помилка читання запиту", http.StatusBadRequest)
+		http.Error(w, "Невірний JSON", http.StatusBadRequest)
 		return
 	}
 
-	err := h.userBookService.UpdateProgress(r.Context(), userID, workID, req.CurrentPage, req.Status)
+	err := h.userBookService.UpdateProgress(r.Context(), userID, workID, req.CurrentPage, req.Status, req.Notes, req.StartDate, req.EndDate)
 	if err != nil {
-		http.Error(w, "Помилка оновлення прогресу: "+err.Error(), http.StatusInternalServerError)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]string{"message": "Прогрес оновлено!"})
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(map[string]string{"message": "Прогрес та нотатки збережено"})
 }
 
 // DELETE /api/me/books/{id} — видалити книгу з полиці

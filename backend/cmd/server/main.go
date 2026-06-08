@@ -7,6 +7,7 @@ import (
 	"book_project/backend/internal/config"
 	"book_project/backend/internal/database"
 	"book_project/backend/internal/router"
+	"book_project/backend/internal/worker"
 )
 
 func main() {
@@ -22,6 +23,9 @@ func main() {
 	defer db.Close()
 
 	r := router.NewRouter(db)
+
+	// ЗАПУСК ФОНОВОГО ПРАЦІВНИКА СПОВІЩЕНЬ
+	worker.StartDiscussionNotifier(db)
 
 	addr := ":" + cfg.AppPort
 	log.Printf("server is running on %s", addr)

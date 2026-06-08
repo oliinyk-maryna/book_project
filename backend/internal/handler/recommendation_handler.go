@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 
+	"book_project/backend/internal/middleware"
 	"book_project/backend/internal/service"
 )
 
@@ -15,9 +16,9 @@ func NewRecommendationHandler(svc *service.RecommendationService) *Recommendatio
 	return &RecommendationHandler{svc: svc}
 }
 
-// POST /api/me/recommendations  {"query": "щось похмуре..."}
 func (h *RecommendationHandler) GetRecommendations(w http.ResponseWriter, r *http.Request) {
-	userID, _ := r.Context().Value("user_id").(string)
+	// ВИПРАВЛЕНО: використовуємо middleware.ContextUserID
+	userID, _ := r.Context().Value(middleware.ContextUserID).(string)
 
 	var req struct {
 		Query string `json:"query"`
@@ -42,9 +43,9 @@ func (h *RecommendationHandler) GetRecommendations(w http.ResponseWriter, r *htt
 	json.NewEncoder(w).Encode(result)
 }
 
-// GET /api/me/recommendations/personalized  — для блоку на головній
 func (h *RecommendationHandler) GetPersonalized(w http.ResponseWriter, r *http.Request) {
-	userID, _ := r.Context().Value("user_id").(string)
+	// ВИПРАВЛЕНО: використовуємо middleware.ContextUserID
+	userID, _ := r.Context().Value(middleware.ContextUserID).(string)
 
 	result, err := h.svc.GetPersonalized(r.Context(), userID, 6)
 	if err != nil {

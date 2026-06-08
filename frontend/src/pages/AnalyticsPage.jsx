@@ -1,106 +1,171 @@
-import React, { useState, useEffect } from 'react';
-import { BookOpen, Clock, Zap, Target, Flame, Calendar as CalendarIcon } from 'lucide-react';
-import { userApi } from '../api/user.api';
-import Loader from '../components/ui/Loader';
-import StatCard from '../components/ui/StatCard';
+import React, { useState, useEffect, useCallback } from 'react';
+import { Target, BookOpen, Bookmark, Loader2, Check, BarChart3, PieChart, CalendarDays, Hash } from 'lucide-react';
+import { API_URL } from '../config';
 
-export default function AnalyticsPage({ isLoggedIn }) {
-  const [stats, setStats] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const year = new Date().getFullYear();
-
-  useEffect(() => {
-    if (!isLoggedIn) {
-      setLoading(false);
-      return;
-    }
-    userApi.getStats()
-      .then(data => setStats(data))
-      .catch(console.error)
-      .finally(() => setLoading(false));
-  }, [isLoggedIn]);
-
-  if (!isLoggedIn) {
-    return (
-      <div className="min-h-[60vh] flex flex-col items-center justify-center text-center px-6">
-        <div className="w-20 h-20 bg-stone-100 rounded-[2rem] flex items-center justify-center mb-6">
-          <Target className="w-10 h-10 text-stone-300" />
-        </div>
-        <h2 className="text-3xl font-serif font-bold text-stone-900 mb-4">Аналітика недоступна</h2>
-        <p className="text-stone-500 font-medium">Увійдіть в систему, щоб відстежувати свій прогрес читання.</p>
+/* ── КОМПОНЕНТ КАРТКИ СТАТИСТИКИ ────────────────────────────────── */
+function StatCard({ icon: Icon, label, value, sub, dark }) {
+  return (
+    <div className="p-5 md:p-6 rounded-3xl border shadow-sm flex flex-col justify-between transition-transform hover:-translate-y-1" 
+         style={dark ? { background: 'var(--c-primary)', borderColor: 'var(--c-primary)' } : { background: 'var(--c-surface)', borderColor: 'var(--c-border)' }}>
+      <div className="p-3 rounded-2xl w-fit" style={dark ? { background: 'rgba(255,255,255,0.1)' } : { background: 'var(--c-bg)' }}>
+        <Icon className="w-5 h-5" style={{ color: dark ? 'white' : 'var(--c-primary)' }} />
       </div>
-    );
-  }
+      <div className="mt-5 md:mt-6">
+        <p className="text-[10px] sm:text-xs font-bold uppercase tracking-widest mb-1 sm:mb-1.5" style={{ color: dark ? 'rgba(255,255,255,0.7)' : 'var(--c-text-3)' }}>{label}</p>
+        <p className="text-3xl sm:text-4xl font-bold font-serif leading-none" style={{ color: dark ? 'white' : 'var(--c-text)' }}>{value}</p>
+        {sub && <p className="text-[10px] sm:text-xs mt-2 font-medium" style={{ color: dark ? 'rgba(255,255,255,0.7)' : 'var(--c-text-2)' }}>{sub}</p>}
+      </div>
+    </div>
+  );
+}
 
-  if (loading) return <Loader fullPage />;
+/* ── ГРАФІК ЗА МІСЯЦЯМИ ────────────────────────────────────────── */
+function MonthsChart({ books }) {
+  const months = ['Січ', 'Лют', 'Бер', 'Кві', 'Тра', 'Чер', 'Лип', 'Сер', 'Вер', 'Жов', 'Лис', 'Гру'];
+  const data = new Array(12).fill(0);
+  books.forEach(b => {
+    if (b.status === 'read' && b.finished_at) {
+      const monthIndex = new Date(b.finished_at).getMonth();
+      data[monthIndex] += 1;
+    }
+  });
+  const max = Math.max(...data, 1);
+  return (
+    <div className="flex items-end justify-between gap-1.5 sm:gap-3 h-40 pt-4">
+      {data.map((count, i) => {
+        const pct = (count / max) * 100;
+        return (
+          <div key={i} className="flex flex-col items-center gap-2 flex-1 group h-full">
+            <span className="text-[10px] font-bold transition-opacity opacity-0 group-hover:opacity-100" style={{ color: 'var(--c-primary)' }}>{count > 0 ? count : ''}</span>
+            <div className="w-full max-w-[2.5rem] rounded-t-xl relative flex items-end flex-1 overflow-hidden" style={{ background: 'var(--c-bg)' }}>
+              <div className="w-full rounded-t-xl transition-all duration-1000 ease-out group-hover:brightness-110" style={{ height: `${pct || 2}%`, background: count > 0 ? 'var(--c-accent)' : 'var(--c-border-2)' }} />
+            </div>
+            <span className="text-[10px] sm:text-[11px] font-bold uppercase" style={{ color: 'var(--c-text-3)' }}>{months[i]}</span>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
 
-  const booksRead = stats?.books_read || 0;
-  const hours = Math.round((stats?.total_duration_seconds || 0) / 3600);
-  const streak = stats?.current_streak || 0;
-  const goal = stats?.target_books || 0;
-  const pct = goal > 0 ? Math.min(100, Math.round((booksRead / goal) * 100)) : 0;
+/* ── ГРАФІК ЖАНРІВ ─────────────────────────────────────────────── */
+function GenreStats({ books }) {
+  const genreCount = {};
+  books.forEach(b => { if (b.status === 'read') { const g = b.category || 'Інше'; genreCount[g] = (genreCount[g] || 0) + 1; }});
+  const sortedGenres = Object.entries(genreCount).sort((a, b) => b[1] - a[1]).slice(0, 5);
+  const totalRead = books.filter(b => b.status === 'read').length;
 
   return (
-    <main className="max-w-6xl mx-auto px-6 py-12 animate-in fade-in slide-in-from-bottom-4 duration-700">
-      <header className="mb-12">
-        <h1 className="text-4xl md:text-5xl font-serif font-black text-stone-900 mb-4">Ваша історія</h1>
-        <p className="text-stone-500 font-medium text-lg flex items-center gap-2">
-          <CalendarIcon className="w-5 h-5" /> Статистика за весь час
-        </p>
-      </header>
+    <div className="space-y-4 pt-2">
+      {sortedGenres.map(([genre, count], i) => {
+        const pct = Math.round((count / totalRead) * 100);
+        return (
+          <div key={i}>
+            <div className="flex justify-between text-xs font-bold mb-1.5" style={{ color: 'var(--c-text-2)' }}>
+              <span className="uppercase tracking-wider">{genre}</span>
+              <span>{count} ({pct}%)</span>
+            </div>
+            <div className="w-full h-2.5 rounded-full overflow-hidden" style={{ background: 'var(--c-bg)' }}>
+              <div className="h-full rounded-full transition-all duration-1000" style={{ width: `${pct}%`, background: 'var(--c-primary)' }} />
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-12">
-        <StatCard icon={BookOpen} label="Прочитано" value={booksRead} sub="книг" />
-        <StatCard icon={Clock} label="Інвестовано" value={hours} sub="годин" variant="light" />
-        <StatCard icon={Zap} label="Ударний темп" value={streak} sub="днів поспіль" />
-        <StatCard icon={Flame} label="Рецензій" value={stats?.reviews_count || 0} sub="написано" variant="light" />
+/* ── ГОЛОВНИЙ КОМПОНЕНТ ─────────────────────────────────────────── */
+export default function AnalyticsPage({ isLoggedIn }) {
+  const [stats, setStats] = useState(null);
+  const [myBooks, setMyBooks] = useState([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [editingGoal, setEditingGoal] = useState(false);
+  const [tempGoal, setTempGoal] = useState('');
+  const year = new Date().getFullYear();
+
+  const loadData = useCallback(async () => {
+    if (!isLoggedIn) { setIsLoading(false); return; }
+    const token = localStorage.getItem('token');
+    const h = { Authorization: `Bearer ${token}` };
+    try {
+      const [sRes, bRes] = await Promise.all([
+        fetch(`${API_URL}/me/stats`, { headers: h }),
+        fetch(`${API_URL}/me/books`, { headers: h }),
+      ]);
+      if (sRes.ok) { const s = await sRes.json(); setStats(s); setTempGoal(s.goal_books || s.target_books || ''); }
+      if (bRes.ok) setMyBooks(await bRes.json() || []);
+    } finally { setIsLoading(false); }
+  }, [isLoggedIn]);
+
+  useEffect(() => { loadData(); }, [loadData]);
+
+  const saveGoal = async () => {
+    const target = parseInt(tempGoal);
+    if (isNaN(target) || target <= 0) { setEditingGoal(false); return; }
+    const token = localStorage.getItem('token');
+    await fetch(`${API_URL}/me/goals`, { method: 'POST', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ year, target_books: target }) });
+    setEditingGoal(false);
+    loadData();
+  };
+
+  if (!isLoggedIn || isLoading) return <div className="flex justify-center py-20"><Loader2 className="w-10 h-10 animate-spin" /></div>;
+
+  const booksRead  = myBooks.filter(b => b.status === 'read').length;
+  const totalPages = myBooks.filter(b => b.status === 'read').reduce((acc, b) => acc + (b.total_pages || 0), 0);
+  const booksYear  = myBooks.filter(b => b.status === 'read' && b.finished_at && new Date(b.finished_at).getFullYear() === year).length;
+  const gBooks     = stats?.goal_books ?? stats?.target_books ?? 0;
+  const pct        = gBooks > 0 ? Math.min(100, Math.round((booksYear / gBooks) * 100)) : 0;
+
+  return (
+    <main className="max-w-5xl mx-auto px-4 mt-6 md:mt-8 pb-28 page-enter">
+      <div className="mb-8 border-b pb-6" style={{ borderColor: 'var(--c-border)' }}>
+        <h1 className="text-4xl font-serif font-black" style={{ color: 'var(--c-text)' }}>Аналітика</h1>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        {/* Віджет Ціль */}
-        <section className="lg:col-span-2 bg-white rounded-[2.5rem] border border-stone-100 p-8 shadow-sm">
-          <div className="flex justify-between items-center mb-8">
-            <h3 className="text-2xl font-bold text-stone-900 flex items-center gap-3">
-              <Target className="w-6 h-6 text-[#D97757]" /> Ціль {year}
-            </h3>
-            {goal > 0 && <span className="text-3xl font-serif font-black text-[#1A361D]">{pct}%</span>}
-          </div>
+      {/* Єдина ціль */}
+      <div className="rounded-3xl border shadow-sm p-8 mb-6" style={{ background: 'var(--c-surface)', borderColor: 'var(--c-border)' }}>
+        <div className="flex items-center justify-between mb-5">
+          <h3 className="font-serif font-bold text-2xl flex items-center gap-2.5" style={{ color: 'var(--c-text)' }}>
+            <Target className="w-6 h-6" style={{ color: 'var(--c-accent)' }} /> Читацький виклик {year}
+          </h3>
+          <button onClick={() => setEditingGoal(!editingGoal)} className="text-xs font-bold uppercase tracking-wider hover:underline" style={{ color: 'var(--c-text-3)' }}>
+            {editingGoal ? 'Скасувати' : 'Змінити ціль'}
+          </button>
+        </div>
 
-          {goal > 0 ? (
-            <div>
-              <div className="w-full bg-stone-100 rounded-full h-4 overflow-hidden mb-4 shadow-inner">
-                <div className="h-full bg-gradient-to-r from-[#1A361D] to-[#3a753e] rounded-full transition-all duration-1000" style={{ width: `${pct}%` }} />
-              </div>
-              <p className="text-stone-500 font-medium">
-                Прочитано <span className="font-bold text-stone-900">{booksRead}</span> з {goal} книг.
-                {booksRead < goal ? ` Ще ${goal - booksRead} до цілі!` : ' Ціль досягнуто! 🎉'}
-              </p>
+        {editingGoal ? (
+          <div className="flex items-center gap-3">
+             <input type="number" value={tempGoal} onChange={e => setTempGoal(e.target.value)} className="w-full rounded-xl px-4 py-3 border outline-none" style={{ background: 'var(--c-bg)' }} />
+             <button onClick={saveGoal} className="px-6 py-3 rounded-xl font-bold text-white" style={{ background: 'var(--c-primary)' }}>Зберегти</button>
+          </div>
+        ) : (
+          <div>
+            <div className="w-full rounded-full h-5 overflow-hidden border shadow-inner mb-2" style={{ background: 'var(--c-bg)' }}>
+              <div className="h-full rounded-full" style={{ width: `${pct}%`, background: 'var(--c-accent)' }} />
             </div>
-          ) : (
-            <div className="text-center py-6 bg-stone-50 rounded-3xl border border-dashed border-stone-200">
-              <p className="text-stone-500 font-medium mb-3">Ви ще не встановили ціль на цей рік.</p>
-              <button className="bg-stone-900 text-white px-6 py-3 rounded-xl font-bold hover:bg-stone-800 transition-colors">
-                Встановити ціль
-              </button>
-            </div>
-          )}
-        </section>
+            <p className="text-sm font-bold" style={{ color: 'var(--c-text-2)' }}>{booksYear} з {gBooks} книг ({pct}%)</p>
+          </div>
+        )}
+      </div>
 
-        {/* Швидкість читання */}
-        <section className="bg-[#1A361D] rounded-[2.5rem] p-8 text-white relative overflow-hidden flex flex-col justify-between shadow-xl">
-          <div className="absolute -right-10 -top-10 opacity-5">
-            <Zap className="w-64 h-64" />
-          </div>
-          <div className="relative z-10">
-            <p className="text-[10px] font-black uppercase tracking-widest text-emerald-400/80 mb-2">Швидкість</p>
-            <p className="text-6xl font-serif font-black mb-2">{Math.round(stats?.avg_pages_per_hour || 0)}</p>
-            <p className="text-emerald-100/80 font-medium">сторінок на годину</p>
-          </div>
-          <div className="relative z-10 mt-8 pt-6 border-t border-white/10">
-            <p className="text-sm font-medium text-emerald-100/80">Улюблений жанр</p>
-            <p className="font-bold text-lg">{stats?.favorite_genre || 'Не визначено'}</p>
-          </div>
-        </section>
+      {/* Картки статистики */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+        <StatCard icon={BookOpen} label="Прочитано" value={booksRead} sub="книг всього" />
+        <StatCard icon={Bookmark} label="Обсяг" value={totalPages} sub="прочитано сторінок" />
+        <StatCard dark icon={CalendarDays} label="Цього року" value={booksYear} sub="прочитаних книг" />
+      </div>
+
+      {/* Графіки */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div className="rounded-3xl border p-8" style={{ background: 'var(--c-surface)', borderColor: 'var(--c-border)' }}>
+          <h3 className="font-serif font-bold text-xl mb-4"><BarChart3 className="inline w-5 h-5 mr-2"/> За місяцями</h3>
+          <MonthsChart books={myBooks} />
+        </div>
+        <div className="rounded-3xl border p-8" style={{ background: 'var(--c-surface)', borderColor: 'var(--c-border)' }}>
+          <h3 className="font-serif font-bold text-xl mb-4"><PieChart className="inline w-5 h-5 mr-2"/> Жанри</h3>
+          <GenreStats books={myBooks} />
+        </div>
       </div>
     </main>
   );

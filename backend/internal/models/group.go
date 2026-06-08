@@ -7,6 +7,7 @@ import (
 )
 
 // Club — повноцінна модель книжкового клубу
+// Club — повноцінна модель книжкового клубу
 type Club struct {
 	ID             uuid.UUID   `json:"id"`
 	Name           string      `json:"name"`
@@ -29,10 +30,12 @@ type Club struct {
 	CurrentPage    int         `json:"current_page_limit"`
 	Milestones     []Milestone `json:"milestones,omitempty"`
 	UserRole       string      `json:"user_role,omitempty"` // admin, member, "" (не учасник)
-	CreatedAt      time.Time   `json:"created_at"`
-	UpdatedAt      time.Time   `json:"updated_at"`
-}
 
+	IsMember bool `json:"is_member"` // <--- ДОДАНО ЦЕЙ РЯДОК
+
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
+}
 type Milestone struct {
 	ID             uuid.UUID  `json:"id"`
 	ClubID         uuid.UUID  `json:"club_id"`
@@ -58,15 +61,18 @@ type ChatMessage struct {
 	ReplyTo        *ChatMessage `json:"reply_to,omitempty"`
 	IsDeleted      bool         `json:"is_deleted"`
 	CreatedAt      time.Time    `json:"created_at"`
+	IsEdited       bool         `json:"is_edited"`
 }
 
 type GroupMember struct {
-	GroupID  uuid.UUID `json:"group_id"`
-	UserID   uuid.UUID `json:"user_id"`
-	Username string    `json:"username,omitempty"`
-	Avatar   string    `json:"avatar_url,omitempty"`
-	Role     string    `json:"role"`
-	JoinedAt time.Time `json:"joined_at"`
+	GroupID     uuid.UUID `json:"group_id"`
+	UserID      uuid.UUID `json:"user_id"`
+	Username    string    `json:"username,omitempty"`
+	Avatar      string    `json:"avatar_url,omitempty"`
+	Role        string    `json:"role"`
+	JoinedAt    time.Time `json:"joined_at"`
+	ID          string    `json:"id"`
+	CurrentPage int       `json:"current_page"`
 }
 
 // Запит на створення клубу
@@ -99,3 +105,11 @@ type ClubInvite struct {
 	CreatedAt     time.Time  `json:"created_at"`
 }
 
+type UserInviteResponse struct {
+	ID        uuid.UUID `json:"id"`
+	ClubID    uuid.UUID `json:"club_id"`
+	ClubName  string    `json:"club_name"`
+	InvitedBy string    `json:"invited_by_username"`
+	Status    string    `json:"status"`
+	CreatedAt time.Time `json:"created_at"`
+}

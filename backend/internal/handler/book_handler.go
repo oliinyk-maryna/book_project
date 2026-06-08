@@ -2,9 +2,12 @@ package handler
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"strconv"
+	"time"
 
+	"book_project/backend/internal/middleware"
 	"book_project/backend/internal/models"
 	"book_project/backend/internal/service"
 )
@@ -70,7 +73,12 @@ func (h *BookHandler) SearchBooks(w http.ResponseWriter, r *http.Request) {
 // GET /api/books/{id}
 func (h *BookHandler) GetBookByID(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
-	userID, _ := r.Context().Value("user_id").(string)
+
+	// ВИПРАВЛЕНО: Використовуємо правильний ключ з middleware
+	var userID string
+	if val := r.Context().Value(middleware.ContextUserID); val != nil {
+		userID = val.(string)
+	}
 
 	book, err := h.bookService.GetBookByID(r.Context(), id, userID)
 	if err != nil {
@@ -79,6 +87,114 @@ func (h *BookHandler) GetBookByID(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(book)
+}
+
+func (h *BookHandler) CreateReview(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	userID := getUserID(r)
+	if userID == "" {
+		http.Error(w, "Неавторизований", http.StatusUnauthorized)
+		return
+	}
+
+	// Гнучка структура
+	var req struct {
+		Rating     int    `json:"rating"`
+		Comment    string `json:"comment"`
+		ReviewText string `json:"review_text"`
+		Content    string `json:"content"`
+		HasSpoiler bool   `json:"has_spoiler"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "Невірний JSON", http.StatusBadRequest)
+		return
+	}
+
+	// Ловимо текст з будь-якого поля
+	text := req.Comment
+	if req.ReviewText != "" {
+		text = req.ReviewText
+	}
+	if req.Content != "" && text == "" {
+		text = req.Content
+	}
+
+	if text == "" {
+		http.Error(w, "Текст відгуку обов'язковий", http.StatusBadRequest)
+		return
+	}
+
+	if err := h.bookService.AddReview(r.Context(), id, userID, req.Rating, text, req.HasSpoiler); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusCreated)
+	json.NewEncoder(w).Encode(map[string]string{"message": "Відгук опубліковано"})
+}
+
+// POST /api/reviews/{id}/like
+func (h *BookHandler) LikeReview(w http.ResponseWriter, r *http.Request) {
+	reviewID := r.PathValue("id")
+
+	userID, ok := r.Context().Value(middleware.ContextUserID).(string)
+	if !ok || userID == "" {
+		http.Error(w, "Неавторизований", http.StatusUnauthorized)
+		return
+	}
+
+	var req struct {
+		Emoji string `json:"emoji"`
+	}
+	json.NewDecoder(r.Body).Decode(&req)
+	if req.Emoji == "" {
+		req.Emoji = "❤️"
+	}
+	if err := h.bookService.LikeReview(r.Context(), reviewID, userID, req.Emoji); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func (h *BookHandler) AddReadingSession(w http.ResponseWriter, r *http.Request) {
+	workID := r.PathValue("id")
+	userID := getUserID(r)
+	if userID == "" {
+		http.Error(w, "Неавторизований", http.StatusUnauthorized)
+		return
+	}
+
+	// ВИПРАВЛЕНО: Додано поле Notes у структуру розпакування JSON
+	var req struct {
+		DurationSeconds int    `json:"duration_seconds"`
+		PagesRead       int    `json:"pages_read"`
+		StartPage       int    `json:"start_page"`
+		EndPage         int    `json:"end_page"`
+		Notes           string `json:"notes"` // <--- ДОДАТИ ЦЕ ПОЛЕ
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "Невірний JSON", http.StatusBadRequest)
+		return
+	}
+
+	// Якщо є сторінки - викликаємо Full метод, інакше звичайний
+	if req.StartPage > 0 || req.EndPage > 0 {
+		// ВИПРАВЛЕНО: Додано req.Notes останнім аргументом
+		if err := h.bookService.AddReadingSessionFull(r.Context(), userID, workID, req.DurationSeconds, req.PagesRead, req.StartPage, req.EndPage, req.Notes); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+	} else {
+		// ВИПРАВЛЕНО: Додано req.Notes останнім аргументом
+		if err := h.bookService.AddReadingSession(r.Context(), userID, workID, req.DurationSeconds, req.PagesRead, req.Notes); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+	}
+
+	w.WriteHeader(http.StatusCreated)
+	json.NewEncoder(w).Encode(map[string]string{"message": "Сесію збережено"})
 }
 
 // GET /api/filters
@@ -114,7 +230,7 @@ func (h *BookHandler) SearchAuthors(w http.ResponseWriter, r *http.Request) {
 func (h *BookHandler) GetTopByYear(w http.ResponseWriter, r *http.Request) {
 	year, _ := strconv.Atoi(r.URL.Query().Get("year"))
 	if year == 0 {
-		year = 2025
+		year = time.Now().Year()
 	}
 	limit, _ := strconv.Atoi(r.URL.Query().Get("limit"))
 	if limit == 0 {
@@ -132,62 +248,25 @@ func (h *BookHandler) GetTopByYear(w http.ResponseWriter, r *http.Request) {
 }
 
 // GET /api/books/{id}/reviews
+// GET /api/books/{id}/reviews
 func (h *BookHandler) GetReviews(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
-	reviews, _ := h.bookService.GetReviewsByWorkID(r.Context(), id)
+	reviews, err := h.bookService.GetReviewsByWorkID(r.Context(), id)
+
+	if err != nil {
+		// ВИВОДИМО РЕАЛЬНУ ПОМИЛКУ В ТЕРМІНАЛ
+		fmt.Printf("❌ ПОМИЛКА SQL (GetReviews): %v\n", err)
+
+		http.Error(w, "Помилка при завантаженні відгуків", http.StatusInternalServerError)
+		return
+	}
+
+	if reviews == nil {
+		reviews = []models.WorkReview{}
+	}
+
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(reviews)
-}
-
-// POST /api/books/{id}/reviews
-func (h *BookHandler) CreateReview(w http.ResponseWriter, r *http.Request) {
-	id := r.PathValue("id")
-	userID, ok := r.Context().Value("user_id").(string)
-	if !ok {
-		http.Error(w, "Неавторизований", http.StatusUnauthorized)
-		return
-	}
-
-	var req struct {
-		Rating     int    `json:"rating"`
-		Comment    string `json:"comment"`
-		HasSpoiler bool   `json:"has_spoiler"`
-	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, "Невірний JSON", http.StatusBadRequest)
-		return
-	}
-
-	if err := h.bookService.AddReview(r.Context(), id, userID, req.Rating, req.Comment, req.HasSpoiler); err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
-	}
-
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusCreated)
-	json.NewEncoder(w).Encode(map[string]string{"message": "Відгук опубліковано"})
-}
-
-// POST /api/reviews/{id}/like
-func (h *BookHandler) LikeReview(w http.ResponseWriter, r *http.Request) {
-	reviewID := r.PathValue("id")
-	userID, ok := r.Context().Value("user_id").(string)
-	if !ok {
-		http.Error(w, "Неавторизований", http.StatusUnauthorized)
-		return
-	}
-	var req struct {
-		Emoji string `json:"emoji"`
-	}
-	json.NewDecoder(r.Body).Decode(&req)
-	if req.Emoji == "" {
-		req.Emoji = "❤️"
-	}
-	if err := h.bookService.LikeReview(r.Context(), reviewID, userID, req.Emoji); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	w.WriteHeader(http.StatusNoContent)
 }
 
 // GET /api/books/{id}/clubs
@@ -198,35 +277,77 @@ func (h *BookHandler) GetBookClubs(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(clubs)
 }
 
-// POST /api/me/books/{id}/sessions
-func (h *BookHandler) AddReadingSession(w http.ResponseWriter, r *http.Request) {
-	workID := r.PathValue("id")
-	userID, ok := r.Context().Value("user_id").(string)
-	if !ok {
+func getUserID(r *http.Request) string {
+	if val := r.Context().Value(middleware.ContextUserID); val != nil {
+		if s, ok := val.(string); ok {
+			return s
+		}
+	}
+	return ""
+}
+
+// PATCH /api/me/books/{id}/rating
+func (h *BookHandler) UpdatePersonalRating(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	userID := getUserID(r)
+	if userID == "" {
 		http.Error(w, "Неавторизований", http.StatusUnauthorized)
 		return
 	}
 
-	var req models.ReadingSessionRequest
+	var req struct {
+		PersonalRating int `json:"personal_rating"`
+	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, "Невірний формат даних", http.StatusBadRequest)
+		http.Error(w, "Невірний JSON", http.StatusBadRequest)
 		return
 	}
 
-	// Якщо startPage/endPage передані — використовуємо повну версію
-	if req.StartPage > 0 || req.EndPage > 0 {
-		if err := h.bookService.AddReadingSessionFull(r.Context(), userID, workID, req.DurationSeconds, req.PagesRead, req.StartPage, req.EndPage); err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-	} else {
-		if err := h.bookService.AddReadingSession(r.Context(), userID, workID, req.DurationSeconds, req.PagesRead); err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
+	if err := h.bookService.UpdatePersonalRating(r.Context(), userID, id, req.PersonalRating); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusCreated)
-	json.NewEncoder(w).Encode(map[string]string{"message": "Сесію збережено"})
+	w.WriteHeader(http.StatusOK)
+}
+
+// DELETE /api/reviews/{id}
+func (h *BookHandler) DeleteReview(w http.ResponseWriter, r *http.Request) {
+	reviewID := r.PathValue("id")
+	userID := getUserID(r)
+	if userID == "" {
+		http.Error(w, "Неавторизований", http.StatusUnauthorized)
+		return
+	}
+
+	if err := h.bookService.DeleteReview(r.Context(), reviewID, userID); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// PATCH /api/reviews/{id}
+func (h *BookHandler) UpdateReview(w http.ResponseWriter, r *http.Request) {
+	reviewID := r.PathValue("id")
+	userID := getUserID(r)
+	if userID == "" {
+		http.Error(w, "Неавторизований", http.StatusUnauthorized)
+		return
+	}
+
+	var req struct {
+		Comment    string `json:"comment"`
+		HasSpoiler bool   `json:"has_spoiler"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "Невірний JSON", http.StatusBadRequest)
+		return
+	}
+
+	if err := h.bookService.UpdateReview(r.Context(), reviewID, userID, req.Comment, req.HasSpoiler); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	w.WriteHeader(http.StatusOK)
 }

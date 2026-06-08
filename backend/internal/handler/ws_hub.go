@@ -9,7 +9,9 @@ import (
 
 // WSMessage — структура повідомлення через WebSocket
 type WSMessage struct {
-	Type        string `json:"type"` // "chat", "system", "typing", "history"
+	Type string `json:"type"` // "chat", "system", "typing", "history", "delete", "edit", "error"
+	// ID надсилається фронтендом як "id" (delete/edit); MessageID — від бекенду
+	ID          string `json:"id,omitempty"`
 	ClubID      string `json:"club_id,omitempty"`
 	UserID      string `json:"user_id,omitempty"`
 	Username    string `json:"username,omitempty"`
@@ -20,8 +22,8 @@ type WSMessage struct {
 	ReplyToID   string `json:"reply_to_id,omitempty"`
 	MessageID   string `json:"message_id,omitempty"`
 	Timestamp   string `json:"timestamp,omitempty"`
-	// Для "typing" подій
-	IsTyping bool `json:"is_typing,omitempty"`
+	IsTyping    bool   `json:"is_typing,omitempty"`
+	IsEdited    bool   `json:"is_edited,omitempty"`
 }
 
 // WSClient — один підключений клієнт
@@ -109,15 +111,25 @@ func (h *WSHub) Run() {
 			log.Printf("[WS] client left club=%s user=%s", client.ClubID, client.UserID)
 
 		case broadcast := <-h.Broadcast:
-			h.mu.RLock()
+			h.mu.RLock() // Блокуємо тільки для читання
 			members, ok := h.clubs[broadcast.ClubID]
-			h.mu.RUnlock()
+
+			// Копіюємо список клієнтів, щоб безпечно відправляти їм повідомлення
+			var clients []*WSClient
+			if ok {
+				for client := range members {
+					clients = append(clients, client)
+				}
+			}
+			h.mu.RUnlock() // Відпускаємо блокування
+
 			if !ok {
 				continue
 			}
-			for client := range members {
+
+			for _, client := range clients {
 				if broadcast.Sender != nil && client == broadcast.Sender {
-					continue
+					continue // Не відправляємо самому собі
 				}
 				if !client.SafeSend(broadcast.Message) {
 					h.Unregister <- client

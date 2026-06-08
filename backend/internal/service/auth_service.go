@@ -3,12 +3,17 @@ package service
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log"
+	"math/big"
 	"os"
 	"time"
 
 	"book_project/backend/internal/models"
 	"book_project/backend/internal/repository"
+
+	"book_project/backend/internal/utils"
+	"crypto/rand"
 
 	"github.com/golang-jwt/jwt/v5"
 	"golang.org/x/crypto/bcrypt"
@@ -83,4 +88,59 @@ func (s *AuthService) GetUserByID(ctx context.Context, id string) (*models.User,
 
 func (s *AuthService) UpdateUser(ctx context.Context, user *models.User) error {
 	return s.repo.Update(ctx, user)
+}
+
+func (s *AuthService) UpdateProfile(ctx context.Context, userID, bio, avatarURL string) error {
+	// Делегуємо виклик у репозиторій користувачів
+	return s.repo.UpdateProfile(ctx, userID, bio, avatarURL)
+}
+func (s *AuthService) ForgotPassword(ctx context.Context, email string) error {
+	user, err := s.repo.GetUserByEmail(ctx, email)
+	if err != nil {
+		return err
+	}
+
+	// Генеруємо 6-значний цифровий код
+	max := big.NewInt(1000000)
+	n, err := rand.Int(rand.Reader, max)
+	if err != nil {
+		return err
+	}
+	code := fmt.Sprintf("%06d", n.Int64())
+	expiresAt := time.Now().UTC().Add(15 * time.Minute)
+
+	err = s.repo.SavePasswordResetToken(ctx, user.ID.String(), code, expiresAt)
+	if err != nil {
+		return err
+	}
+
+	return utils.SendResetEmail(user.Email, code)
+}
+
+func (s *AuthService) VerifyResetCode(ctx context.Context, code string) error {
+	_, expiresAt, err := s.repo.GetPasswordResetToken(ctx, code)
+	if err != nil {
+		return errors.New("невірний код")
+	}
+	if time.Now().UTC().After(expiresAt.UTC()) {
+		return errors.New("код прострочений")
+	}
+	return nil
+}
+
+func (s *AuthService) ResetPassword(ctx context.Context, token, newPassword string) error {
+	// 1. Отримуємо токен з БД
+	userID, expiresAt, err := s.repo.GetPasswordResetToken(ctx, token)
+	if err != nil || time.Now().UTC().After(expiresAt.UTC()) {
+		return err // Токен недійсний або прострочений
+	}
+
+	// 2. Хешуємо новий пароль
+	hashedPwd, err := bcrypt.GenerateFromPassword([]byte(newPassword), bcrypt.DefaultCost)
+	if err != nil {
+		return err
+	}
+
+	// 3. Оновлюємо пароль через репозиторій
+	return s.repo.UpdatePasswordAndClearToken(ctx, userID, string(hashedPwd), token)
 }

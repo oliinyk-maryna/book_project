@@ -1,22 +1,40 @@
 import React, { useState, useEffect } from 'react';
 import { Users, Lock, ChevronRight, Loader2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { booksApi } from '../../api/books.api';
+import { clubsApi } from '../../api/clubs.api';
 
 export default function BookClubsList({ bookId, isLoggedIn }) {
   const navigate = useNavigate();
   const [clubs, setClubs] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
+  const fetchClubs = () => {
     if (!bookId) return;
-    
-    // Отримуємо клуби для конкретної книги
-    booksApi.getBookClubs(bookId)
-      .then(data => setClubs(data || []))
+    setLoading(true);
+    // Використовуємо універсальний API клубів з фільтром по книзі, 
+    // щоб бекенд повернув інформацію про user_role
+    clubsApi.getAll(`?work_id=${bookId}`)
+      .then(data => {
+        const clubList = Array.isArray(data) ? data : (data?.clubs || []);
+        setClubs(clubList);
+      })
       .catch(console.error)
       .finally(() => setLoading(false));
+  };
+
+  useEffect(() => {
+    fetchClubs();
   }, [bookId]);
+
+  const handleJoin = async (clubId) => {
+    if (!isLoggedIn) return alert('Увійдіть в систему, щоб вступити до клубу');
+    try {
+      await clubsApi.join(clubId);
+      fetchClubs(); // Оновлюємо статус після вступу
+    } catch (e) {
+      alert(e.message || "Помилка вступу");
+    }
+  };
 
   if (loading) {
     return (
@@ -32,12 +50,6 @@ export default function BookClubsList({ bookId, isLoggedIn }) {
         <div className="text-center py-12 bg-stone-50 rounded-3xl border border-dashed border-stone-200">
           <Users className="w-12 h-12 text-stone-300 mx-auto mb-4" />
           <p className="text-stone-500 font-medium mb-4">Ще немає активних клубів, які читають цю книгу.</p>
-          <button
-            onClick={() => navigate('/clubs')}
-            className="bg-[#1A361D] text-white px-6 py-3 rounded-xl font-bold hover:bg-[#2C5234] transition-colors shadow-lg shadow-green-900/10"
-          >
-            Створити клуб
-          </button>
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -64,12 +76,27 @@ export default function BookClubsList({ bookId, isLoggedIn }) {
                     {club.members_count || 0} {club.max_members ? `/ ${club.max_members}` : ''}
                   </span>
                 </div>
-                <button
-                  onClick={() => navigate('/clubs')}
-                  className="text-xs font-black uppercase tracking-widest text-[#D97757] flex items-center gap-1 group-hover:translate-x-1 transition-transform"
-                >
-                  Перейти <ChevronRight className="w-3.5 h-3.5" />
-                </button>
+                
+                {/* Логіка кнопок "ВСТУПИТИ" та "ВІДКРИТИ" */}
+                {club.user_role ? (
+                  <button
+                    onClick={() => navigate('/clubs')}
+                    className="text-[10px] font-black uppercase tracking-widest text-[#D97757] flex items-center gap-1 group-hover:translate-x-1 transition-transform"
+                  >
+                    Перейти <ChevronRight className="w-3.5 h-3.5" />
+                  </button>
+                ) : club.is_private ? (
+                  <span className="text-[10px] font-black uppercase tracking-widest text-stone-400">
+                    Закритий
+                  </span>
+                ) : (
+                  <button
+                    onClick={() => handleJoin(club.id)}
+                    className="text-[10px] font-black uppercase tracking-widest text-[#1A361D] flex items-center gap-1 transition-transform hover:scale-105"
+                  >
+                    Вступити +
+                  </button>
+                )}
               </div>
             </div>
           ))}

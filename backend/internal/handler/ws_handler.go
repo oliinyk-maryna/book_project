@@ -19,7 +19,7 @@ var upgrader = websocket.Upgrader{
 	ReadBufferSize:  1024,
 	WriteBufferSize: 1024,
 	CheckOrigin: func(r *http.Request) bool {
-		return true // В продакшні обмежити до свого домену
+		return true
 	},
 }
 
@@ -41,17 +41,14 @@ func (h *WSHandler) ServeClubWS(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Перевіряємо чи юзер є членом клубу
 	isMember, err := h.clubRepo.IsMember(r.Context(), clubID, userID)
 	if err != nil || !isMember {
 		http.Error(w, "Not a club member", http.StatusForbidden)
 		return
 	}
 
-	// Отримуємо username
 	username, avatar := h.clubRepo.GetUserInfo(r.Context(), userID)
 
-	// Апгрейдимо HTTP → WebSocket
 	conn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
 		log.Printf("[WS] upgrade error: %v", err)
@@ -62,33 +59,23 @@ func (h *WSHandler) ServeClubWS(w http.ResponseWriter, r *http.Request) {
 		Hub:    h.hub,
 		ClubID: clubID,
 		UserID: userID,
-		Send:   make(chan []byte, 128),
+		Send:   make(chan []byte, 256),
 	}
 
 	h.hub.Register <- client
 
-	// Відправляємо системне повідомлення про вхід
-	h.hub.BroadcastToClub(clubID, WSMessage{
-		Type:        "system",
-		ClubID:      clubID,
-		Username:    username,
-		Content:     username + " приєднався до чату",
-		MessageType: "system",
-	})
+	// Надсилаємо історію повідомлень
+	go h.sendHistory(client, clubID)
 
-	// Відправляємо останні 30 повідомлень новому учаснику
-	go h.sendHistory(client, conn, clubID)
-
-	// Горутини для читання і запису
 	go h.writePump(client, conn)
 	h.readPump(client, conn, username, avatar)
 }
 
-func (h *WSHandler) sendHistory(client *WSClient, conn *websocket.Conn, clubID string) {
+func (h *WSHandler) sendHistory(client *WSClient, clubID string) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	msgs, err := h.clubRepo.GetRecentMessages(ctx, clubID, 30)
+	msgs, err := h.clubRepo.GetRecentMessages(ctx, clubID, 50)
 	if err != nil {
 		return
 	}
@@ -106,6 +93,14 @@ func (h *WSHandler) sendHistory(client *WSClient, conn *websocket.Conn, clubID s
 		return
 	}
 	client.SafeSend(data)
+}
+
+// resolveID повертає ID повідомлення — фронт може надіслати як "id" або "message_id"
+func resolveID(msg WSMessage) string {
+	if msg.MessageID != "" {
+		return msg.MessageID
+	}
+	return msg.ID
 }
 
 func (h *WSHandler) readPump(client *WSClient, conn *websocket.Conn, username, avatar string) {
@@ -141,13 +136,12 @@ func (h *WSHandler) readPump(client *WSClient, conn *websocket.Conn, username, a
 		incoming.ClubID = client.ClubID
 		incoming.Timestamp = time.Now().UTC().Format(time.RFC3339)
 
-		// Обробляємо тип
 		switch incoming.Type {
+
 		case "chat":
 			if incoming.Content == "" {
 				continue
 			}
-			// Зберігаємо в БД
 			msgID := uuid.New()
 			incoming.MessageID = msgID.String()
 
@@ -163,7 +157,6 @@ func (h *WSHandler) readPump(client *WSClient, conn *websocket.Conn, username, a
 			})
 			cancel()
 
-			// Розсилаємо в клуб (включно з відправником)
 			data, _ := json.Marshal(incoming)
 			h.hub.Broadcast <- &ClubBroadcast{
 				ClubID:  client.ClubID,
@@ -171,7 +164,6 @@ func (h *WSHandler) readPump(client *WSClient, conn *websocket.Conn, username, a
 			}
 
 		case "typing":
-			// Розсилаємо typing indicator (не зберігаємо)
 			incoming.IsTyping = true
 			data, _ := json.Marshal(incoming)
 			h.hub.Broadcast <- &ClubBroadcast{
@@ -179,6 +171,52 @@ func (h *WSHandler) readPump(client *WSClient, conn *websocket.Conn, username, a
 				Message: data,
 				Sender:  client,
 			}
+
+		case "delete":
+			msgID := resolveID(incoming)
+			if msgID == "" {
+				continue
+			}
+			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			err := h.clubRepo.DeleteMessage(ctx, msgID, client.UserID)
+			cancel()
+			if err != nil {
+				errMsg, _ := json.Marshal(WSMessage{Type: "error", Content: err.Error()})
+				client.SafeSend(errMsg)
+				continue
+			}
+			// Транслюємо тип "delete" — фронт слухає саме цей тип
+			resp, _ := json.Marshal(WSMessage{
+				Type:      "delete",
+				ClubID:    client.ClubID,
+				MessageID: msgID,
+				ID:        msgID,
+			})
+			h.hub.Broadcast <- &ClubBroadcast{ClubID: client.ClubID, Message: resp}
+
+		case "edit":
+			msgID := resolveID(incoming)
+			if msgID == "" || incoming.Content == "" {
+				continue
+			}
+			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			err := h.clubRepo.EditMessage(ctx, msgID, client.UserID, incoming.Content)
+			cancel()
+			if err != nil {
+				errMsg, _ := json.Marshal(WSMessage{Type: "error", Content: err.Error()})
+				client.SafeSend(errMsg)
+				continue
+			}
+			// Транслюємо тип "edit" — фронт слухає саме цей тип
+			resp, _ := json.Marshal(WSMessage{
+				Type:      "edit",
+				ClubID:    client.ClubID,
+				MessageID: msgID,
+				ID:        msgID,
+				Content:   incoming.Content,
+				IsEdited:  true,
+			})
+			h.hub.Broadcast <- &ClubBroadcast{ClubID: client.ClubID, Message: resp}
 		}
 	}
 }

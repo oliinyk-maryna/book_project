@@ -250,3 +250,37 @@ func (r *SocialRepository) SearchUsers(ctx context.Context, query, viewerID stri
 	}
 	return users, nil
 }
+
+func (r *SocialRepository) GetConnections(ctx context.Context, userID string, connType string) ([]models.UserProfile, error) {
+	var query string
+	if connType == "followers" {
+		query = `SELECT u.id, u.username, COALESCE(u.avatar_url::text,''), COALESCE(u.bio,'')
+                 FROM users u JOIN user_follows f ON u.id = f.follower_id WHERE f.following_id = $1::uuid`
+	} else {
+		query = `SELECT u.id, u.username, COALESCE(u.avatar_url::text,''), COALESCE(u.bio,'')
+                 FROM users u JOIN user_follows f ON u.id = f.following_id WHERE f.follower_id = $1::uuid`
+	}
+
+	rows, err := r.db.Query(ctx, query, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var users []models.UserProfile
+	for rows.Next() {
+		var u models.UserProfile
+		var avatar, bio string
+		if err := rows.Scan(&u.ID, &u.Username, &avatar, &bio); err != nil {
+			continue
+		}
+		if avatar != "" {
+			u.AvatarURL = &avatar
+		}
+		if bio != "" {
+			u.Bio = &bio
+		}
+		users = append(users, u)
+	}
+	return users, nil
+}

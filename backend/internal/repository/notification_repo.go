@@ -27,12 +27,35 @@ func (r *NotificationRepository) Create(ctx context.Context, userID, notifType, 
 }
 
 func (r *NotificationRepository) GetByUser(ctx context.Context, userID string, limit int) (*models.NotificationSummary, error) {
+	// Оновлений SQL-запит із JOIN-ами для отримання назви книги та статусу інвайту
 	rows, err := r.db.Query(ctx, `
-		SELECT id, user_id, type, COALESCE(title,''), COALESCE(body,''),
-			entity_id, COALESCE(entity_type,''), is_read, created_at
-		FROM notifications
-		WHERE user_id = $1::uuid
-		ORDER BY created_at DESC LIMIT $2`,
+        SELECT 
+            n.id, 
+            n.user_id, 
+            n.type, 
+            COALESCE(n.title,''), 
+            CASE 
+                WHEN n.type IN ('INVITE_CLUB', 'club_invite') AND w.title IS NOT NULL 
+                THEN COALESCE(n.body,'') || ' (Книга: «' || w.title || '»)'
+                ELSE COALESCE(n.body,'')
+            END as body,
+            n.entity_id, 
+            COALESCE(n.entity_type,''), 
+            n.is_read, 
+            n.created_at,
+            -- Повертаємо статус інвайту
+            COALESCE(ci.status, '') as invite_status
+        FROM notifications n
+        -- ПОКРАЩЕНИЙ JOIN: шукаємо інвайт або за його власним ID, або за ID клубу + ID юзера
+        LEFT JOIN club_invites ci ON 
+            (n.entity_id = ci.id OR (ci.club_id = n.entity_id AND ci.invited_user_id = n.user_id))
+            AND n.type IN ('INVITE_CLUB', 'club_invite')
+        -- Клуб шукаємо або через знайдене запрошення, або напряму через entity_id сповіщення
+        LEFT JOIN groups g ON g.id = COALESCE(ci.club_id, n.entity_id)
+        LEFT JOIN works w ON g.work_id = w.id
+        WHERE n.user_id = $1::uuid
+        ORDER BY n.created_at DESC 
+        LIMIT $2`,
 		userID, limit,
 	)
 	if err != nil {
@@ -43,9 +66,11 @@ func (r *NotificationRepository) GetByUser(ctx context.Context, userID string, l
 	var notifs []models.Notification
 	for rows.Next() {
 		var n models.Notification
+		// Додано &n.Status в кінці для зчитування invite_status
 		if err := rows.Scan(
 			&n.ID, &n.UserID, &n.Type, &n.Title, &n.Body,
 			&n.EntityID, &n.EntityType, &n.IsRead, &n.CreatedAt,
+			&n.Status, // <--- ЗЧИТУЄМО СТАТУС СЮДИ
 		); err != nil {
 			continue
 		}
@@ -56,16 +81,14 @@ func (r *NotificationRepository) GetByUser(ctx context.Context, userID string, l
 	}
 
 	var unread int
-	// Додано обробку помилки під час отримання кількості непрочитаних
 	err = r.db.QueryRow(ctx, `
-		SELECT COUNT(*) 
-		FROM notifications 
-		WHERE user_id = $1::uuid AND is_read = false`,
+        SELECT COUNT(*) 
+        FROM notifications 
+        WHERE user_id = $1::uuid AND is_read = false`,
 		userID,
 	).Scan(&unread)
 
 	if err != nil {
-		// Якщо не вдалося отримати count, логуємо помилку або просто повертаємо 0 (залишаємо default value)
 		unread = 0
 	}
 

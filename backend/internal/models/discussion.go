@@ -70,12 +70,12 @@ type ReadingChallenge struct {
 
 // DirectMessage
 type DirectMessage struct {
-	ID             uuid.UUID `json: "id"`
-	ConversationID uuid.UUID `json: "conversation_id"`
-	SenderID       uuid.UUID `json: "sender_id"`
-	SenderName     string    `json: "sender_name"`             // Додайте це поле
-	SenderAvatar   string    `json: "sender_avatar,omitempty"` // Опціонально
-	Content        string    `json: "content"`
-	IsRead         bool      `json: "is_read"`
-	CreatedAt      time.Time `json: "created_at"`
+	ID             uuid.UUID `json:"id"`
+	ConversationID uuid.UUID `json:"conversation_id"`
+	SenderID       uuid.UUID `json:"sender_id"`
+	SenderName     string    `json:"sender_name"`
+	SenderAvatar   string    `json:"sender_avatar,omitempty"`
+	Content        string    `json:"content"`
+	IsRead         bool      `json:"is_read"`
+	CreatedAt      time.Time `json:"created_at"`
 }

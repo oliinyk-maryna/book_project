@@ -3,31 +3,119 @@ package handler
 import (
 	"encoding/json"
 	"net/http"
+	"strconv"
 
 	"book_project/backend/internal/middleware"
-	"book_project/backend/internal/repository"
+	"book_project/backend/internal/service"
 )
 
 type SocialHandler struct {
-	repo *repository.SocialRepository
+	socialService *service.SocialService
 }
 
-func NewSocialHandler(repo *repository.SocialRepository) *SocialHandler {
-	return &SocialHandler{repo: repo}
+func NewSocialHandler(s *service.SocialService) *SocialHandler {
+	return &SocialHandler{socialService: s}
 }
+
+// Helper для безпечного діставання ID
+func getSocialUserID(r *http.Request) string {
+	if val := r.Context().Value(middleware.ContextUserID); val != nil {
+		if s, ok := val.(string); ok {
+			return s
+		}
+	}
+	return ""
+}
+
+// ════════════════════════════════════════════════════════════════════════
+// ПІДПИСКИ (FOLLOWERS)
+// ════════════════════════════════════════════════════════════════════════
+
+// POST /api/users/{id}/follow
+func (h *SocialHandler) FollowUser(w http.ResponseWriter, r *http.Request) {
+	targetUserID := r.PathValue("id")
+	currentUserID := getSocialUserID(r)
+
+	if currentUserID == "" || targetUserID == "" {
+		http.Error(w, "Неавторизований або невірний ID", http.StatusUnauthorized)
+		return
+	}
+
+	if currentUserID == targetUserID {
+		http.Error(w, "Не можна підписатися на самого себе", http.StatusBadRequest)
+		return
+	}
+
+	if err := h.socialService.FollowUser(r.Context(), currentUserID, targetUserID); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(map[string]string{"message": "Ви успішно підписалися"})
+}
+
+// DELETE /api/users/{id}/follow
+func (h *SocialHandler) UnfollowUser(w http.ResponseWriter, r *http.Request) {
+	targetUserID := r.PathValue("id")
+	currentUserID := getSocialUserID(r)
+
+	if currentUserID == "" {
+		http.Error(w, "Неавторизований", http.StatusUnauthorized)
+		return
+	}
+
+	if err := h.socialService.UnfollowUser(r.Context(), currentUserID, targetUserID); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// GET /api/users/{id}/followers
+func (h *SocialHandler) GetFollowers(w http.ResponseWriter, r *http.Request) {
+	userID := r.PathValue("id")
+	followers, err := h.socialService.GetFollowers(r.Context(), userID)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(followers)
+}
+
+// GET /api/users/{id}/following
+func (h *SocialHandler) GetFollowing(w http.ResponseWriter, r *http.Request) {
+	userID := r.PathValue("id")
+	following, err := h.socialService.GetFollowing(r.Context(), userID)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(following)
+}
+
+// ════════════════════════════════════════════════════════════════════════
+// ВІДНОВЛЕНІ МЕТОДИ (Профіль, Пошук, Фід, Зв'язки)
+// ════════════════════════════════════════════════════════════════════════
 
 // GET /api/users/search?q=...
 func (h *SocialHandler) SearchUsers(w http.ResponseWriter, r *http.Request) {
 	query := r.URL.Query().Get("q")
-	viewerID, _ := r.Context().Value(middleware.ContextUserID).(string)
-	if viewerID == "" {
-		viewerID = "00000000-0000-0000-0000-000000000000"
+	if query == "" {
+		// Якщо фронтенд передає через параметр `query`
+		query = r.URL.Query().Get("query")
 	}
-	users, err := h.repo.SearchUsers(r.Context(), query, viewerID)
+	viewerID := getSocialUserID(r)
+
+	users, err := h.socialService.SearchUsers(r.Context(), query, viewerID)
 	if err != nil {
-		http.Error(w, "Помилка пошуку", http.StatusInternalServerError)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(users)
 }
@@ -35,118 +123,66 @@ func (h *SocialHandler) SearchUsers(w http.ResponseWriter, r *http.Request) {
 // GET /api/users/{id}/profile
 func (h *SocialHandler) GetProfile(w http.ResponseWriter, r *http.Request) {
 	targetID := r.PathValue("id")
-	viewerID, _ := r.Context().Value(middleware.ContextUserID).(string)
-	if viewerID == "" {
-		viewerID = "00000000-0000-0000-0000-000000000000"
-	}
-	profile, err := h.repo.GetProfile(r.Context(), targetID, viewerID)
+	viewerID := getSocialUserID(r)
+
+	profile, err := h.socialService.GetProfile(r.Context(), targetID, viewerID)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusNotFound)
 		return
 	}
+
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(profile)
 }
 
-// POST /api/users/{id}/follow
-func (h *SocialHandler) Follow(w http.ResponseWriter, r *http.Request) {
-	targetID := r.PathValue("id")
-	myID, ok := r.Context().Value(middleware.ContextUserID).(string)
-	if !ok {
-		http.Error(w, "Неавторизований", http.StatusUnauthorized)
-		return
-	}
-	if err := h.repo.Follow(r.Context(), myID, targetID); err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
-	}
-	w.WriteHeader(http.StatusNoContent)
-}
-
-// DELETE /api/users/{id}/follow
-func (h *SocialHandler) Unfollow(w http.ResponseWriter, r *http.Request) {
-	targetID := r.PathValue("id")
-	myID, ok := r.Context().Value(middleware.ContextUserID).(string)
-	if !ok {
-		http.Error(w, "Неавторизований", http.StatusUnauthorized)
-		return
-	}
-	h.repo.Unfollow(r.Context(), myID, targetID)
-	w.WriteHeader(http.StatusNoContent)
-}
-
-// POST /api/users/{id}/friend-request
-func (h *SocialHandler) SendFriendRequest(w http.ResponseWriter, r *http.Request) {
-	targetID := r.PathValue("id")
-	myID, ok := r.Context().Value(middleware.ContextUserID).(string)
-	if !ok {
-		http.Error(w, "Неавторизований", http.StatusUnauthorized)
-		return
-	}
-	if err := h.repo.SendFriendRequest(r.Context(), myID, targetID); err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
-	}
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]string{"message": "Запит надіслано"})
-}
-
-// POST /api/me/friend-requests/{id}/accept
-func (h *SocialHandler) AcceptFriendRequest(w http.ResponseWriter, r *http.Request) {
-	requestID := r.PathValue("id")
-	myID, ok := r.Context().Value(middleware.ContextUserID).(string)
-	if !ok {
-		http.Error(w, "Неавторизований", http.StatusUnauthorized)
-		return
-	}
-	if err := h.repo.AcceptFriendRequest(r.Context(), requestID, myID); err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
-	}
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]string{"message": "Дружба підтверджена!"})
-}
-
-// POST /api/me/friend-requests/{id}/decline
-func (h *SocialHandler) DeclineFriendRequest(w http.ResponseWriter, r *http.Request) {
-	requestID := r.PathValue("id")
-	myID, ok := r.Context().Value(middleware.ContextUserID).(string)
-	if !ok {
-		http.Error(w, "Неавторизований", http.StatusUnauthorized)
-		return
-	}
-	h.repo.DeclineFriendRequest(r.Context(), requestID, myID)
-	w.WriteHeader(http.StatusNoContent)
-}
-
-// GET /api/me/friend-requests
-func (h *SocialHandler) GetFriendRequests(w http.ResponseWriter, r *http.Request) {
-	myID, ok := r.Context().Value(middleware.ContextUserID).(string)
-	if !ok {
-		http.Error(w, "Неавторизований", http.StatusUnauthorized)
-		return
-	}
-	reqs, err := h.repo.GetFriendRequests(r.Context(), myID)
-	if err != nil {
-		http.Error(w, "Помилка", http.StatusInternalServerError)
-		return
-	}
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(reqs)
-}
-
 // GET /api/me/feed
 func (h *SocialHandler) GetFeed(w http.ResponseWriter, r *http.Request) {
-	myID, ok := r.Context().Value(middleware.ContextUserID).(string)
-	if !ok {
+	userID := getSocialUserID(r)
+	if userID == "" {
 		http.Error(w, "Неавторизований", http.StatusUnauthorized)
 		return
 	}
-	events, err := h.repo.GetActivityFeed(r.Context(), myID, 30)
+
+	limit := 20
+	if l := r.URL.Query().Get("limit"); l != "" {
+		if parsed, err := strconv.Atoi(l); err == nil && parsed > 0 {
+			limit = parsed
+		}
+	}
+
+	events, err := h.socialService.GetActivityFeed(r.Context(), userID, limit)
 	if err != nil {
-		http.Error(w, "Помилка", http.StatusInternalServerError)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(events)
+}
+
+// GET /api/me/connections?type=followers|following
+func (h *SocialHandler) GetConnections(w http.ResponseWriter, r *http.Request) {
+	userID := getSocialUserID(r)
+	if userID == "" {
+		http.Error(w, "Неавторизований", http.StatusUnauthorized)
+		return
+	}
+
+	connType := r.URL.Query().Get("type")
+	var connections interface{}
+	var err error
+
+	if connType == "followers" {
+		connections, err = h.socialService.GetFollowers(r.Context(), userID)
+	} else {
+		connections, err = h.socialService.GetFollowing(r.Context(), userID)
+	}
+
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(connections)
 }

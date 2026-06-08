@@ -7,4 +7,6 @@ export default defineConfig({
     react(),
     tailwindcss(),
   ],
+  // Дозволяємо читати VITE_* змінні з .env файлів
+  envPrefix: 'VITE_',
 })
