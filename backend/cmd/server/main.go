@@ -8,7 +8,7 @@ import (
 	"book_project/backend/internal/config"
 	"book_project/backend/internal/database"
 	"book_project/backend/internal/router"
-	"book_project/backend/internal/worker"
+	//"book_project/backend/internal/worker"
 
 	"github.com/rs/cors" // Додали пакет для обробки CORS запитів
 )
@@ -45,18 +45,17 @@ func main() {
 	handler := c.Handler(r)
 
 	// ЗАПУСК ФОНОВОГО ПРАЦІВНИКА СПОВІЩЕНЬ
-	worker.StartDiscussionNotifier(db)
+	//worker.StartDiscussionNotifier(db)
 
 	// Хмара Railway сама дасть правильний порт через змінну "PORT"
 	port := os.Getenv("PORT")
 	if port == "" {
-		port = cfg.AppPort // Якщо запускаємо локально на комп'ютері, візьмемо 8080
+		port = "8080" // Дефолтний порт для локальної розробки
 	}
-
 	addr := ":" + port
 	log.Printf("server is running on %s", addr)
 
-	// Передаємо в ListenAndServe вже обгорнутий handler замість r
+	// Важливо: переконайтеся, що ви запускаєте сервер саме на цьому адресі
 	if err := http.ListenAndServe(addr, handler); err != nil {
 		log.Fatalf("failed to start server: %v", err)
 	}
