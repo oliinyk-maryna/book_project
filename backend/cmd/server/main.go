@@ -3,6 +3,7 @@ package main
 import (
 	"log"
 	"net/http"
+	"os"
 
 	"book_project/backend/internal/config"
 	"book_project/backend/internal/database"
@@ -27,10 +28,17 @@ func main() {
 	// ЗАПУСК ФОНОВОГО ПРАЦІВНИКА СПОВІЩЕНЬ
 	worker.StartDiscussionNotifier(db)
 
-	addr := ":" + cfg.AppPort
+	// Хмара Railway сама дасть правильний порт через змінну "PORT"
+	port := os.Getenv("PORT")
+	if port == "" {
+		port = cfg.AppPort // Якщо запускаємо локально на комп'ютері, візьмемо 8080
+	}
+
+	addr := ":" + port
 	log.Printf("server is running on %s", addr)
 
 	if err := http.ListenAndServe(addr, r); err != nil {
 		log.Fatalf("failed to start server: %v", err)
+
 	}
 }
