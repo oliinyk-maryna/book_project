@@ -2,11 +2,7 @@ package config
 
 import (
 	"errors"
-	"log"
 	"os"
-	"path/filepath"
-
-	"github.com/joho/godotenv"
 )
 
 type Config struct {
@@ -21,19 +17,6 @@ type Config struct {
 }
 
 func Load() (*Config, error) {
-	dir, err := os.Getwd()
-	if err == nil {
-		envPath := filepath.Join(dir, ".env")
-		if _, err := os.Stat(envPath); os.IsNotExist(err) {
-			envPath = filepath.Join(dir, "..", ".env")
-		}
-		if err = godotenv.Load(envPath); err != nil {
-			log.Printf("Warning: .env file not found at %s. Falling back to system env.", envPath)
-		} else {
-			log.Printf("Loaded .env from %s", envPath)
-		}
-	}
-
 	jwtSecret := getEnv("JWT_SECRET", "")
 	if jwtSecret == "" {
 		return nil, errors.New("JWT_SECRET is not set — refusing to start without a secure secret")
@@ -41,7 +24,7 @@ func Load() (*Config, error) {
 
 	cfg := &Config{
 		AppPort:    getEnv("APP_PORT", "8080"),
-		DBHost:     getEnv("DB_HOST", "127.0.0.1"),
+		DBHost:     getEnv("DB_HOST", ""),
 		DBPort:     getEnv("DB_PORT", "5432"),
 		DBUser:     getEnv("DB_USER", "postgres"),
 		DBPassword: getEnv("DB_PASSWORD", ""),
