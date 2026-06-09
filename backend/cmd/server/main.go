@@ -27,12 +27,13 @@ func main() {
 	// 3. Ініціалізуємо роутер
 	r := router.NewRouter(dbPool)
 
-	// 4. НАЛАШТУВАННЯ ПОРТУ ДЛЯ RAILWAY
+	// 4. НАЛАШТУВАННЯ ПОРТУ ДЛЯ RAILWAY В DOCKER
 	port := os.Getenv("PORT")
 	if port == "" {
 		port = "8080"
 	}
-	addr := ":" + port // Тільки двокрапка!
+	// ДОДАЄМО 0.0.0.0, щоб Docker пропускав зовнішній трафік!
+	addr := "0.0.0.0:" + port
 
 	log.Printf("Server is running on %s", addr)
 
