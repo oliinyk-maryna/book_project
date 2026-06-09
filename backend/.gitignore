@@ -1,0 +1,9 @@
+# Локальні файли середовища
+.env
+.env.local
+.env.*.local
+
+# Інші файли, які не варто пушити (для Go/Mac/Windows)
+/bin/
+/tmp/
+.DS_Store

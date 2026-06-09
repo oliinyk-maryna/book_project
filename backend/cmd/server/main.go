@@ -3,34 +3,41 @@ package main
 import (
 	"log"
 	"net/http"
+	"os"
 
 	"book_project/backend/internal/config"
 	"book_project/backend/internal/database"
 	"book_project/backend/internal/router"
-	"book_project/backend/internal/worker"
 )
 
 func main() {
+	// 1. Завантажуємо конфігурацію (ТІЛЬКИ з системних змінних)
 	cfg, err := config.Load()
 	if err != nil {
-		log.Fatalf("failed to load config: %v", err)
+		log.Fatalf("Failed to load config: %v", err)
 	}
 
-	db, err := database.NewPostgres(cfg)
+	// 2. Підключаємо базу даних
+	dbPool, err := database.NewPostgres(cfg)
 	if err != nil {
-		log.Fatalf("failed to connect to database: %v", err)
+		log.Fatalf("Failed to connect to database: %v", err)
 	}
-	defer db.Close()
+	defer dbPool.Close()
 
-	r := router.NewRouter(db)
+	// 3. Ініціалізуємо роутер
+	r := router.NewRouter(dbPool)
 
-	// ЗАПУСК ФОНОВОГО ПРАЦІВНИКА СПОВІЩЕНЬ
-	worker.StartDiscussionNotifier(db)
+	// 4. НАЛАШТУВАННЯ ПОРТУ ДЛЯ RAILWAY
+	port := os.Getenv("PORT")
+	if port == "" {
+		port = "8080" // Фолбек для локальної розробки
+	}
+	addr := "0.0.0.0:" + port
 
-	addr := ":" + cfg.AppPort
-	log.Printf("server is running on %s", addr)
+	log.Printf("Server is running on %s", addr)
 
+	// 5. Запуск сервера
 	if err := http.ListenAndServe(addr, r); err != nil {
-		log.Fatalf("failed to start server: %v", err)
+		log.Fatalf("Server crashed: %v", err)
 	}
 }

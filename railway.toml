@@ -1,0 +1,9 @@
+[build]
+builder = "nixpacks"
+
+[build.nixpacksPlan.phases.setup]
+nixPkgs = ["go_1_22"] # Примусово вказуємо версію Go для Railway
+
+[deploy]
+startCommand = "./book_project" # Запуск згенерованого бінарника
+restartPolicyType = "on-failure"
