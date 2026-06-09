@@ -3,6 +3,7 @@ package database
 import (
 	"context"
 	"fmt"
+	"os"
 	"time"
 
 	"book_project/backend/internal/config"
@@ -11,16 +12,21 @@ import (
 )
 
 func NewPostgres(cfg *config.Config) (*pgxpool.Pool, error) {
-	// Тепер ми знову використовуємо динамічні дані з конфігу/env
-	dsn := fmt.Sprintf(
-		"postgres://%s:%s@%s:%s/%s?sslmode=%s",
-		cfg.DBUser,
-		cfg.DBPassword,
-		cfg.DBHost,
-		cfg.DBPort,
-		cfg.DBName,
-		cfg.DBSSLMode,
-	)
+	// 1. Спочатку перевіряємо, чи є готова системна змінна DATABASE_URL (для Railway)
+	dsn := os.Getenv("DATABASE_URL")
+
+	// 2. Якщо її немає, зшиваємо по шматочках (для локального комп'ютера)
+	if dsn == "" {
+		dsn = fmt.Sprintf(
+			"postgres://%s:%s@%s:%s/%s?sslmode=%s",
+			cfg.DBUser,
+			cfg.DBPassword,
+			cfg.DBHost,
+			cfg.DBPort,
+			cfg.DBName,
+			cfg.DBSSLMode,
+		)
+	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
