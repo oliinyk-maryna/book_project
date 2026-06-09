@@ -47,6 +47,22 @@ type BookAdminRequest struct {
 	Language    string   `json:"language"`
 }
 
+// GET /api/admin/books/{id} — отримати повні дані книги для редагування
+func (h *AdminHandler) GetBook(w http.ResponseWriter, r *http.Request) {
+	if !adminCheck(r) {
+		http.Error(w, "Forbidden", http.StatusForbidden)
+		return
+	}
+	id := r.PathValue("id")
+	book, err := h.bookRepo.GetByIDWithDetails(r.Context(), id, "")
+	if err != nil {
+		http.Error(w, "Книгу не знайдено: "+err.Error(), http.StatusNotFound)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(book)
+}
+
 // POST /api/admin/books — додати книгу
 func (h *AdminHandler) CreateBook(w http.ResponseWriter, r *http.Request) {
 	if !adminCheck(r) {

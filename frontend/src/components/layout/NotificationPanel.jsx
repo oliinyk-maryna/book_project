@@ -127,6 +127,31 @@ export default function NotificationPanel({ isLoggedIn }) {
     }
   };
 
+  /* ── Дія взаємної підписки (Підписатися у відповідь) ────────── */
+  const handleFollowBack = async (e, n) => {
+    e.stopPropagation(); // Запобігаємо переходу на сторінку
+    try {
+      const res = await fetch(`${API_URL}/api/users/${n.actor_id}/follow`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
+      });
+
+      if (res.ok) {
+        toast.success('Ви підписалися у відповідь!');
+        window.dispatchEvent(new Event('app:refresh'));
+        
+        // Оновлюємо стан локально, щоб кнопка одразу змінилася на гарний текст
+        setNotifs(prev => prev.map(item =>
+          item.id === n.id ? { ...item, status: 'followed_back' } : item
+        ));
+      } else {
+        toast.error('Не вдалося підписатися');
+      }
+    } catch (err) {
+      toast.error("Помилка з'єднання");
+    }
+  };
+
   /* ── Icon per type ──────────────────────────────────────────── */
   const getIcon = (type) => {
     switch (type) {
@@ -228,6 +253,26 @@ export default function NotificationPanel({ isLoggedIn }) {
                               className="px-3 py-1.5 bg-stone-200 text-stone-700 text-xs font-medium rounded-lg hover:bg-stone-300 transition-colors"
                             >
                               Відхилити
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* КНОПКА ДЛЯ ВЗАЄМНОЇ ПІДПИСКИ */}
+                    {(n.type === 'follow' || n.type === 'new_follower') && (
+                      <div className="mt-2.5" onClick={(e) => e.stopPropagation()}>
+                        {n.status === 'followed_back' ? (
+                          <p className="text-xs font-semibold text-stone-400 italic bg-stone-50 px-2.5 py-1 rounded-lg inline-block border border-stone-100">
+                            ✓ Ви підписалися у відповідь
+                          </p>
+                        ) : (
+                          <div className="flex gap-2">
+                            <button
+                              onClick={(e) => handleFollowBack(e, n)}
+                              className="px-3 py-1.5 bg-emerald-600 text-white text-xs font-medium rounded-lg hover:bg-emerald-700 transition-colors"
+                            >
+                              Підписатися у відповідь
                             </button>
                           </div>
                         )}

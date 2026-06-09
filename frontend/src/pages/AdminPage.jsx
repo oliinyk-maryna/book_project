@@ -302,6 +302,18 @@ export default function AdminPage() {
 
   const ask = (title, body, action) => setConfirm({ title, body, action });
 
+  // Відкрити модалку редагування з повними даними книги
+  const openEditBook = async (b) => {
+    setBookModal('loading');
+    try {
+      const full = await adminApi.getBook(b.id);
+      setBookModal(full);
+    } catch {
+      // fallback to list data
+      setBookModal(b);
+    }
+  };
+
   const delBook = (b) => ask(
     `Видалити «${b.title}»?`,
     'Книга та всі пов\'язані записи будуть видалені назавжди.',

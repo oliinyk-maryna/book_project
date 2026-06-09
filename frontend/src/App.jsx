@@ -153,7 +153,7 @@ export default function App() {
           <GlobalSearch handleNavigate={handleNavigate} />
         </div>
 
-        <div className="flex items-center gap-2 ml-auto">
+        <div className="flex items-center gap-1.5 ml-auto">
           <button onClick={() => setSearchOpen(true)}
             className="md:hidden p-2 rounded-xl transition-colors hover:bg-[var(--c-surface-2)]"
             style={{ color:'var(--c-text-2)' }}>
@@ -172,14 +172,23 @@ export default function App() {
                   : currentUser?.username?.[0]?.toUpperCase()}
               </button>
             ) : (
-              <div className="hidden sm:flex items-center gap-2">
+              <>
+                {/* Мобільна кнопка — тільки «Увійти» (компактна) */}
                 <button onClick={() => openAuth('login')}
-                  className="text-sm font-semibold px-4 py-2 rounded-full transition-colors hover:bg-[var(--c-surface-2)]"
-                  style={{ color:'var(--c-text-2)' }}>Увійти</button>
-                <button onClick={() => openAuth('register')}
-                  className="text-sm font-bold px-4 py-2 rounded-full text-white transition-all hover:opacity-90"
-                  style={{ background:'var(--c-primary)' }}>Реєстрація</button>
-              </div>
+                  className="sm:hidden flex items-center gap-1.5 px-3 py-2 rounded-full text-xs font-bold text-white"
+                  style={{ background:'var(--c-primary)' }}>
+                  <User className="w-3.5 h-3.5" /> Увійти
+                </button>
+                {/* Desktop — обидві кнопки */}
+                <div className="hidden sm:flex items-center gap-2">
+                  <button onClick={() => openAuth('login')}
+                    className="text-sm font-semibold px-4 py-2 rounded-full transition-colors hover:bg-[var(--c-surface-2)]"
+                    style={{ color:'var(--c-text-2)' }}>Увійти</button>
+                  <button onClick={() => openAuth('register')}
+                    className="text-sm font-bold px-4 py-2 rounded-full text-white transition-all hover:opacity-90"
+                    style={{ background:'var(--c-primary)' }}>Реєстрація</button>
+                </div>
+              </>
             )
           )}
         </div>

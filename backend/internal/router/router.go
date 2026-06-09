@@ -210,6 +210,7 @@ func NewRouter(db *pgxpool.Pool) http.Handler {
 	// АДМІНКА
 	// ════════════════════════════════════════════════════════════════════════
 	mux.HandleFunc("GET /api/admin/books", middleware.Auth(middleware.AdminOnly(adminHandler.ListBooks)))
+	mux.HandleFunc("GET /api/admin/books/{id}", middleware.Auth(middleware.AdminOnly(adminHandler.GetBook)))
 	mux.HandleFunc("POST /api/admin/books", middleware.Auth(middleware.AdminOnly(adminHandler.CreateBook)))
 	mux.HandleFunc("PUT /api/admin/books/{id}", middleware.Auth(middleware.AdminOnly(adminHandler.UpdateBook)))
 	mux.HandleFunc("DELETE /api/admin/books/{id}", middleware.Auth(middleware.AdminOnly(adminHandler.DeleteBook)))

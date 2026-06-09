@@ -943,24 +943,42 @@ func (r *BookRepository) AdminUpdateBook(ctx context.Context, workID string, p A
 	defer tx.Rollback(ctx)
 
 	// 1. Оновлення основної таблиці works
-	_, err = tx.Exec(ctx, `UPDATE works SET title=$1, description=$2 WHERE id=$3::uuid`, p.Title, p.Description, workID)
-	if err != nil {
-		return fmt.Errorf("помилка оновлення works: %v", err)
+	if p.Title != "" {
+		_, err = tx.Exec(ctx, `UPDATE works SET title=$1, description=$2 WHERE id=$3::uuid`,
+			p.Title, p.Description, workID)
+		if err != nil {
+			return fmt.Errorf("помилка оновлення works: %v", err)
+		}
 	}
 
-	// 2. Оновлення видання (дати, сторінки, обкладинка)
+	// 2. Оновлення/створення видання (UPSERT — якщо edition відсутнє, створюємо)
 	var pubDate *string
 	if p.PubDate != "" {
 		pubDate = &p.PubDate
 	}
+	pageCount := p.PageCount
+	if pageCount <= 0 {
+		pageCount = 0 // null/unknown
+	}
 
-	_, err = tx.Exec(ctx, `
-		UPDATE editions 
-		SET cover_url=$1, page_count=$2, publisher=$3, publication_date=$4::date
+	res, err := tx.Exec(ctx, `
+		UPDATE editions
+		SET cover_url=$1, page_count=NULLIF($2,0), publisher=$3, publication_date=$4::date
 		WHERE work_id=$5::uuid`,
-		p.CoverURL, p.PageCount, p.Publisher, pubDate, workID)
+		p.CoverURL, pageCount, p.Publisher, pubDate, workID)
 	if err != nil {
 		return fmt.Errorf("помилка оновлення editions: %v", err)
+	}
+
+	// Якщо edition не існує — створюємо
+	if res.RowsAffected() == 0 {
+		_, err = tx.Exec(ctx, `
+			INSERT INTO editions(work_id, cover_url, page_count, publisher, publication_date, is_primary)
+			VALUES($1::uuid, $2, NULLIF($3,0), $4, $5::date, true)`,
+			workID, p.CoverURL, pageCount, p.Publisher, pubDate)
+		if err != nil {
+			return fmt.Errorf("помилка створення editions: %v", err)
+		}
 	}
 
 	// 3. Оновлення автора
@@ -980,6 +998,9 @@ func (r *BookRepository) AdminUpdateBook(ctx context.Context, workID string, p A
 	if len(p.Genres) > 0 {
 		tx.Exec(ctx, `DELETE FROM work_genres WHERE work_id=$1::uuid`, workID)
 		for _, genre := range p.Genres {
+			if genre == "" {
+				continue
+			}
 			var genreID int
 			err = tx.QueryRow(ctx, `SELECT id FROM genres WHERE name=$1 LIMIT 1`, genre).Scan(&genreID)
 			if err != nil {

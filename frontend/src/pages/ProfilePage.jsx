@@ -4,10 +4,9 @@ import { API_URL } from '../config';
 import { userApi } from '../api/user.api';
 import toast from 'react-hot-toast';
 
-/* ── Модалка підписники/підписки з рекомендаціями + пошуком ─────── */
-function ConnectionsModal({ type, onClose, handleNavigate }) {
+/* ── Модалка підписники/підписки з точним запитом до бекенду ─────── */
+function ConnectionsModal({ type, currentUserId, onClose, handleNavigate }) {
   const [people, setPeople]     = useState([]);
-  const [recoms, setRecoms]     = useState([]);
   const [query, setQuery]       = useState('');
   const [loading, setLoading]   = useState(true);
   const title = type === 'followers' ? 'Підписники' : 'Підписки';
@@ -15,39 +14,36 @@ function ConnectionsModal({ type, onClose, handleNavigate }) {
   const loadConnections = async () => {
     setLoading(true);
     try {
-      const data = await userApi.getProfileConnections(type);
-      setPeople(data || []);
-    } catch { setPeople([]); }
+      // Робимо точний запит до нашого бекенду за id користувача відповідно до router.go
+      const res = await fetch(`${API_URL}/api/users/${currentUserId}/${type}`, {
+        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setPeople(Array.isArray(data) ? data : []);
+      } else {
+        setPeople([]);
+      }
+    } catch { 
+      setPeople([]); 
+    }
     setLoading(false);
   };
 
-  const loadRecommended = async () => {
-    try {
-      const data = await userApi.searchUsers('');
-      setRecoms((data || []).slice(0, 8));
-    } catch { setRecoms([]); }
-  };
-
   useEffect(() => {
-    loadConnections();
-    loadRecommended();
-  }, [type]);
+    if (currentUserId) {
+      loadConnections();
+    }
+  }, [type, currentUserId]);
 
-  // Пошук
-  useEffect(() => {
-    if (query.trim().length < 2) return;
-    const t = setTimeout(async () => {
-      try {
-        const data = await userApi.searchUsers(query);
-        setPeople(data || []);
-      } catch {}
-    }, 400);
-    return () => clearTimeout(t);
-  }, [query]);
+  // Локальний пошук виключно серед ВЛАСНИХ підписок чи підписників
+  const filteredPeople = people.filter(p => 
+    p.username?.toLowerCase().includes(query.toLowerCase())
+  );
 
-  const shown = query.trim().length >= 2 ? people : (people.length > 0 ? people : recoms);
-  const emptyLabel = query.trim().length >= 2 ? 'Нікого не знайдено' :
-    type === 'followers' ? 'Ще немає підписників' : 'Ще нікого не підписуєтесь';
+  const shown = query.trim().length > 0 ? filteredPeople : people;
+  const emptyLabel = query.trim().length > 0 ? 'Нікого не знайдено' :
+    type === 'followers' ? 'Ще немає підписників' : 'Ви ще ні на кого не підписані';
 
   return (
     <div className="fixed inset-0 z-50 flex items-end md:items-center justify-center bg-black/40 backdrop-blur-sm animate-in fade-in duration-200">
@@ -63,17 +59,11 @@ function ConnectionsModal({ type, onClose, handleNavigate }) {
           <div className="relative">
             <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2" style={{ color:'var(--c-text-3)' }} />
             <input value={query} onChange={e => setQuery(e.target.value)}
-              placeholder="Пошук за ніком..."
+              placeholder="Пошук серед списку..."
               className="w-full pl-8 pr-4 py-2 rounded-xl text-sm outline-none"
               style={{ background:'var(--c-bg)', border:'1px solid var(--c-border)', color:'var(--c-text)' }} />
           </div>
         </div>
-
-        {people.length === 0 && recoms.length > 0 && query.length < 2 && (
-          <p className="text-[10px] font-bold uppercase tracking-wider px-5 pt-3 pb-1" style={{ color:'var(--c-text-3)' }}>
-            Рекомендовані
-          </p>
-        )}
 
         <div className="overflow-y-auto custom-scrollbar flex-1 p-3 space-y-0.5">
           {loading ? (
@@ -86,11 +76,10 @@ function ConnectionsModal({ type, onClose, handleNavigate }) {
           ) : shown.length === 0 ? (
             <p className="text-center py-8 text-sm" style={{ color:'var(--c-text-3)' }}>{emptyLabel}</p>
           ) : shown.map(p => (
-  // ЗАМІНИЛИ <button> НА <div> ТА ДОДАЛИ КЛАСИ ДЛЯ СТИЛЮ
-  <div key={p.id} onClick={() => { handleNavigate('user', p.id); onClose(); }} 
-       className="w-full block cursor-pointer">
-     <PersonRow person={p} onNavigate={() => { handleNavigate('user', p.id); onClose(); }} />
-  </div>
+            <div key={p.id} onClick={() => { handleNavigate('user', p.id); onClose(); }} 
+                 className="w-full block cursor-pointer">
+               <PersonRow person={p} onNavigate={() => { handleNavigate('user', p.id); onClose(); }} />
+            </div>
           ))}
         </div>
       </div>
@@ -105,7 +94,12 @@ function PersonRow({ person, onNavigate }) {
     const was = following;
     setFollowing(!was);
     try {
-      was ? await userApi.unfollow(person.id) : await userApi.follow(person.id);
+      const method = was ? 'DELETE' : 'POST';
+      const res = await fetch(`${API_URL}/api/users/${person.id}/follow`, {
+        method: method,
+        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
+      });
+      if (!res.ok) setFollowing(was);
     } catch { setFollowing(was); }
   };
   return (
@@ -128,7 +122,6 @@ function PersonRow({ person, onNavigate }) {
     </div>
   );
 }
-
 /* ── Картка книги що читається ─────────────────────────────────── */
 function ReadingCard({ book, onNavigate }) {
   const pageCount = book.page_count || book.total_pages || 0;
@@ -333,7 +326,7 @@ export default function ProfilePage({ handleNavigate, handleLogout, currentUser,
         )}
       </section>
 
-      {modal && <ConnectionsModal type={modal} onClose={() => setModal(null)} handleNavigate={handleNavigate} />}
+      {modal && <ConnectionsModal type={modal} currentUserId={currentUser?.id} onClose={() => setModal(null)} handleNavigate={handleNavigate} />}
     </main>
   );
 }
