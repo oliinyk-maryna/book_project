@@ -3,7 +3,6 @@ package database
 import (
 	"context"
 	"fmt"
-	"os"
 	"time"
 
 	"book_project/backend/internal/config"
@@ -12,10 +11,9 @@ import (
 )
 
 func NewPostgres(cfg *config.Config) (*pgxpool.Pool, error) {
-	// 1. Спочатку перевіряємо, чи є готова системна змінна DATABASE_URL (для Railway)
-	dsn := os.Getenv("DATABASE_URL")
+	dsn := cfg.DBURL
 
-	// 2. Якщо її немає, зшиваємо по шматочках (для локального комп'ютера)
+	// Якщо великої змінної DATABASE_URL немає або вона порожня, зшиваємо з окремих частин
 	if dsn == "" {
 		dsn = fmt.Sprintf(
 			"postgres://%s:%s@%s:%s/%s?sslmode=%s",

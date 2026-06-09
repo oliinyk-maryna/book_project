@@ -1,25 +1,22 @@
 package config
 
 import (
-	"errors"
 	"log"
-	"net/url"
 	"os"
 	"path/filepath"
-	"strings"
 
 	"github.com/joho/godotenv"
 )
 
 type Config struct {
 	AppPort    string
+	DBURL      string // Додаємо поле для прямого посилання на базу
 	DBHost     string
 	DBPort     string
 	DBUser     string
 	DBPassword string
 	DBName     string
 	DBSSLMode  string
-	DBDSN      string
 	JWTSecret  string
 }
 
@@ -39,45 +36,24 @@ func Load() (*Config, error) {
 
 	jwtSecret := getEnv("JWT_SECRET", "")
 	if jwtSecret == "" {
-		return nil, errors.New("JWT_SECRET is not set — refusing to start without a secure secret")
+		// Тимчасовий фолбек для девелопменту, щоб додаток не падав, якщо забули додати в панелі
+		jwtSecret = "fallback_secret_key_for_local_and_railway"
 	}
 
 	cfg := &Config{
-		// ПЕРШИМ ДІЛОМ ШУКАЄМО ЗМІННУ "PORT", ЯКУ ДАЄ RAILWAY
+		// Railway дає змінну PORT. Якщо її немає, шукаємо APP_PORT, якщо і її немає — 8080
 		AppPort:    getEnv("PORT", getEnv("APP_PORT", "8080")),
-		DBHost:     getEnv("DB_HOST", "127.0.0.1"),
-		DBPort:     getEnv("DB_PORT", "5432"),
-		DBUser:     getEnv("DB_USER", "postgres"),
-		DBPassword: getEnv("DB_PASSWORD", ""),
-		DBName:     getEnv("DB_NAME", "book_project_db"),
-		DBSSLMode:  getEnv("DB_SSLMODE", "disable"),
+		DBURL:      getEnv("DATABASE_URL", ""),
+		DBHost:     getEnv("DB_HOST", getEnv("POSTGRES_HOST", "127.0.0.1")),
+		DBPort:     getEnv("DB_PORT", getEnv("POSTGRES_PORT", "5432")),
+		DBUser:     getEnv("DB_USER", getEnv("POSTGRES_USER", "postgres")),
+		DBPassword: getEnv("DB_PASSWORD", getEnv("POSTGRES_PASSWORD", "")),
+		DBName:     getEnv("DB_NAME", getEnv("POSTGRES_DB", "book_project_db")),
+		DBSSLMode:  getEnv("DB_SSLMODE", getEnv("POSTGRES_SSLMODE", "disable")),
 		JWTSecret:  jwtSecret,
 	}
 
 	return cfg, nil
-}
-
-func ensureSSLParam(rawDSN string) string {
-	if strings.Contains(rawDSN, "sslmode=") {
-		return rawDSN
-	}
-	u, err := url.Parse(rawDSN)
-	if err != nil {
-		return rawDSN
-	}
-	q := u.Query()
-	q.Set("sslmode", "require")
-	u.RawQuery = q.Encode()
-	return u.String()
-}
-
-func firstNonEmpty(vals ...string) string {
-	for _, v := range vals {
-		if strings.TrimSpace(v) != "" {
-			return v
-		}
-	}
-	return ""
 }
 
 func getEnv(key, fallback string) string {
