@@ -30,9 +30,9 @@ func main() {
 	// 4. НАЛАШТУВАННЯ ПОРТУ ДЛЯ RAILWAY
 	port := os.Getenv("PORT")
 	if port == "" {
-		port = "8080" // Фолбек для локальної розробки
+		port = "8080"
 	}
-	addr := "0.0.0.0:" + port
+	addr := ":" + port // Тільки двокрапка!
 
 	log.Printf("Server is running on %s", addr)
 
