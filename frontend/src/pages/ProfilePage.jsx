@@ -12,15 +12,17 @@ function ConnectionsModal({ type, currentUserId, onClose, handleNavigate }) {
   const title = type === 'followers' ? 'Підписники' : 'Підписки';
 
   const loadConnections = async () => {
+    if (!currentUserId) return;
     setLoading(true);
     try {
-      // Робимо точний запит до нашого бекенду за id користувача відповідно до router.go
-      const res = await fetch(`${API_URL}/api/users/${currentUserId}/${type}`, {
+      // Змінено на ${API_URL}/users/... щоб уникнути дублювання /api/api
+      const res = await fetch(`${API_URL}/users/${currentUserId}/${type}`, {
         headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
       });
       if (res.ok) {
         const data = await res.json();
-        setPeople(Array.isArray(data) ? data : []);
+        // Гнучка перевірка структури відповіді бекенду
+        setPeople(Array.isArray(data) ? data : (Array.isArray(data?.users) ? data.users : []));
       } else {
         setPeople([]);
       }
@@ -36,7 +38,7 @@ function ConnectionsModal({ type, currentUserId, onClose, handleNavigate }) {
     }
   }, [type, currentUserId]);
 
-  // Локальний пошук виключно серед ВЛАСНИХ підписок чи підписників
+  // Локальний пошук серед отриманого списку
   const filteredPeople = people.filter(p => 
     p.username?.toLowerCase().includes(query.toLowerCase())
   );
@@ -75,12 +77,16 @@ function ConnectionsModal({ type, currentUserId, onClose, handleNavigate }) {
             ))
           ) : shown.length === 0 ? (
             <p className="text-center py-8 text-sm" style={{ color:'var(--c-text-3)' }}>{emptyLabel}</p>
-          ) : shown.map(p => (
-            <div key={p.id} onClick={() => { handleNavigate('user', p.id); onClose(); }} 
-                 className="w-full block cursor-pointer">
-               <PersonRow person={p} onNavigate={() => { handleNavigate('user', p.id); onClose(); }} />
-            </div>
-          ))}
+          ) : shown.map(p => {
+            // Безпечно витягуємо будь-який можливий ID користувача з бази даних
+            const targetId = p.id || p.user_id || p.follower_id || p.following_id;
+            return (
+              <div key={targetId || Math.random()} onClick={() => { if(targetId) { handleNavigate('user', targetId); onClose(); } }} 
+                   className="w-full block cursor-pointer">
+                 <PersonRow person={p} onNavigate={() => { if(targetId) { handleNavigate('user', targetId); onClose(); } }} />
+              </div>
+            );
+          })}
         </div>
       </div>
     </div>
@@ -89,19 +95,25 @@ function ConnectionsModal({ type, currentUserId, onClose, handleNavigate }) {
 
 function PersonRow({ person, onNavigate }) {
   const [following, setFollowing] = useState(person.is_following);
+  const targetId = person.id || person.user_id || person.follower_id || person.following_id;
+
   const toggle = async (e) => {
     e.stopPropagation();
+    if (!targetId) return; // Захист від undefined запитів
+    
     const was = following;
     setFollowing(!was);
     try {
       const method = was ? 'DELETE' : 'POST';
-      const res = await fetch(`${API_URL}/api/users/${person.id}/follow`, {
+      // Використовуємо ${API_URL}/users/... без зайвого другого префіксу /api
+      const res = await fetch(`${API_URL}/users/${targetId}/follow`, {
         method: method,
         headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
       });
       if (!res.ok) setFollowing(was);
     } catch { setFollowing(was); }
   };
+
   return (
     <div onClick={onNavigate}
       className="w-full flex items-center gap-3 px-3 py-2.5 rounded-2xl transition-colors hover:bg-[var(--c-bg)] text-left cursor-pointer">

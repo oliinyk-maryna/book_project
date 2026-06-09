@@ -129,9 +129,17 @@ export default function NotificationPanel({ isLoggedIn }) {
 
   /* ── Дія взаємної підписки (Підписатися у відповідь) ────────── */
   const handleFollowBack = async (e, n) => {
-    e.stopPropagation(); // Запобігаємо переходу на сторінку
+    e.stopPropagation(); 
+    // Захист: шукаємо ID підписника в усіх можливих полях сповіщення
+    const targetId = n.actor_id || n.user_id || n.entity_id;
+    if (!targetId) {
+      toast.error('Не вдалося знайти ID користувача');
+      return;
+    }
+
     try {
-      const res = await fetch(`${API_URL}/api/users/${n.actor_id}/follow`, {
+      // Використовуємо ${API_URL}/users/... (без другого /api)
+      const res = await fetch(`${API_URL}/users/${targetId}/follow`, {
         method: 'POST',
         headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
       });
@@ -140,7 +148,6 @@ export default function NotificationPanel({ isLoggedIn }) {
         toast.success('Ви підписалися у відповідь!');
         window.dispatchEvent(new Event('app:refresh'));
         
-        // Оновлюємо стан локально, щоб кнопка одразу змінилася на гарний текст
         setNotifs(prev => prev.map(item =>
           item.id === n.id ? { ...item, status: 'followed_back' } : item
         ));
