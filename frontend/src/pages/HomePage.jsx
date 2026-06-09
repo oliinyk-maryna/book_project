@@ -127,11 +127,6 @@ export default function HomePage({ handleNavigate, isLoggedIn, currentUser, open
             Що почитаємо<br/>сьогодні?
           </h1>
         </div>
-        {!isLoggedIn && (
-          <button onClick={() => openAuthModal('register')} className="w-full md:w-auto px-8 py-3.5 rounded-2xl text-sm font-bold text-white transition-transform active:scale-95 shadow-md flex items-center justify-center gap-2" style={{ background: 'var(--c-primary)' }}>
-            Увійти в бібліотеку <ArrowRight className="w-4 h-4"/>
-          </button>
-        )}
       </section>
 
       {/* ── ВІДЖЕТ "ЧИТАЮ ЗАРАЗ" ────────────────────────────────────── */}
