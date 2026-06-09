@@ -30,23 +30,25 @@ func Load() (*Config, error) {
 		JWTSecret: jwtSecret,
 	}
 
-	// Railway / Supabase / Neon — надають DATABASE_URL
+	// Always read individual DB_* variables — Railway provides these reliably.
+	// DATABASE_URL reference variable resolution can silently fail, so individual
+	// vars are the primary connection method; DATABASE_URL is kept as a fallback.
+	cfg.DBHost = getEnv("DB_HOST", "")
+	cfg.DBPort = getEnv("DB_PORT", "5432")
+	cfg.DBUser = getEnv("DB_USER", "postgres")
+	cfg.DBPassword = getEnv("DB_PASSWORD", "")
+	cfg.DBName = getEnv("DB_NAME", "book_project_db")
+	cfg.DBSSLMode = getEnv("DB_SSLMODE", "disable")
+
+	// Capture a pre-built DSN from DATABASE_URL / DB_DSN / POSTGRES_URL as a
+	// fallback for environments that provide it (Supabase, Neon, etc.).
 	dsn := firstNonEmpty(
 		os.Getenv("DATABASE_URL"),
 		os.Getenv("DB_DSN"),
 		os.Getenv("POSTGRES_URL"),
 	)
-
 	if dsn != "" {
 		cfg.DBDSN = ensureSSLParam(dsn)
-	} else {
-		// Fallback для локальної розробки (без хардкоду 127.0.0.1 на випадок помилок)
-		cfg.DBHost = getEnv("DB_HOST", "")
-		cfg.DBPort = getEnv("DB_PORT", "5432")
-		cfg.DBUser = getEnv("DB_USER", "postgres")
-		cfg.DBPassword = getEnv("DB_PASSWORD", "")
-		cfg.DBName = getEnv("DB_NAME", "book_project_db")
-		cfg.DBSSLMode = getEnv("DB_SSLMODE", "disable")
 	}
 
 	return cfg, nil
