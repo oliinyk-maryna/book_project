@@ -4,6 +4,11 @@ builder = "NIXPACKS"
 [build.nixpacksPlan.phases.setup]
 nixPkgs = ["go_1_22"]
 
+# Явно вказуємо, ЯК зібрати проєкт
+[build.nixpacksPlan.phases.build]
+cmds = ["go build -o server_bin cmd/server/main.go"]
+
 [deploy]
-startCommand = "go run cmd/server/main.go"
+# Запускаємо вже скомпільований файл (без команди 'go')
+startCommand = "./server_bin"
 restartPolicyType = "ON_FAILURE"
