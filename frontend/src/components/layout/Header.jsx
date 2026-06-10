@@ -89,6 +89,7 @@ function NotificationDropdown({ isLoggedIn }) {
   const [open, setOpen]       = useState(false);
   const [notifs, setNotifs]   = useState([]);
   const [unread, setUnread]   = useState(0);
+  const [followedBack, setFollowedBack] = useState({});
   const ref = useRef(null);
 
   useEffect(() => {
@@ -116,7 +117,22 @@ function NotificationDropdown({ isLoggedIn }) {
     setNotifs(prev => prev.map(n => ({ ...n, is_read: true })));
   };
 
-  const TYPE_ICONS = { club_invite: '📚', friend_request: '👤', review_like: '❤️', milestone: '🎯', default: '🔔' };
+  const handleFollowBack = async (n) => {
+    if (!n.entity_id) return;
+    try {
+      await userApi.follow(n.entity_id);
+      setFollowedBack(prev => ({ ...prev, [n.id]: true }));
+    } catch {}
+  };
+
+  const TYPE_ICONS = {
+    club_invite: '📚', INVITE_CLUB: '📚',
+    friend_request: '👤',
+    review_like: '❤️',
+    milestone: '🎯',
+    new_follower: '👤',
+    default: '🔔'
+  };
 
   if (!isLoggedIn) return null;
 
@@ -140,16 +156,31 @@ function NotificationDropdown({ isLoggedIn }) {
               <button onClick={markAll} className="text-xs text-[#2C5234] font-semibold">Всі прочитані</button>
             )}
           </div>
-          <div className="max-h-80 overflow-y-auto">
+          <div className="max-h-96 overflow-y-auto">
             {notifs.length === 0 ? (
               <div className="py-8 text-center text-stone-400 text-sm">Немає сповіщень</div>
             ) : notifs.map(n => (
               <div key={n.id} className={`px-4 py-3 border-b border-stone-50 last:border-0 ${!n.is_read ? 'bg-blue-50/40' : ''}`}>
                 <div className="flex gap-3">
-                  <span className="text-lg shrink-0">{TYPE_ICONS[n.type] || TYPE_ICONS.default}</span>
+                  <span className="text-lg shrink-0 mt-0.5">{TYPE_ICONS[n.type] || TYPE_ICONS.default}</span>
                   <div className="flex-1 min-w-0">
                     {n.title && <p className="text-sm font-semibold text-stone-900 leading-tight">{n.title}</p>}
                     <p className="text-xs text-stone-500 mt-0.5 line-clamp-2">{n.body}</p>
+
+                    {/* Кнопка "Підписатися у відповідь" для сповіщень про нового підписника */}
+                    {n.type === 'new_follower' && n.entity_id && !followedBack[n.id] && (
+                      <button
+                        onClick={() => handleFollowBack(n)}
+                        className="mt-1.5 text-[11px] font-bold px-2.5 py-1 rounded-full text-white"
+                        style={{ background: '#2C5234' }}>
+                        Підписатися у відповідь
+                      </button>
+                    )}
+                    {n.type === 'new_follower' && followedBack[n.id] && (
+                      <span className="mt-1.5 text-[11px] font-medium text-green-600 flex items-center gap-1">
+                        ✓ Ви підписались
+                      </span>
+                    )}
                   </div>
                   {!n.is_read && <div className="w-2 h-2 bg-blue-500 rounded-full shrink-0 mt-1" />}
                 </div>

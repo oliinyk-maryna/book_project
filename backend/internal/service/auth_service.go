@@ -144,3 +144,57 @@ func (s *AuthService) ResetPassword(ctx context.Context, token, newPassword stri
 	// 3. Оновлюємо пароль через репозиторій
 	return s.repo.UpdatePasswordAndClearToken(ctx, userID, string(hashedPwd), token)
 }
+
+var jwtKey = []byte("my_secret_key") // В ідеалі бери це з config.go
+
+type Claims struct {
+	UserID string `json:"user_id"`
+	jwt.RegisteredClaims
+}
+
+// 1. Метод для парсингу токена
+func (s *AuthService) ParseToken(tokenString string) (string, error) {
+	claims := &Claims{}
+
+	token, err := jwt.ParseWithClaims(tokenString, claims, func(token *jwt.Token) (interface{}, error) {
+		return jwtKey, nil
+	})
+
+	if err != nil || !token.Valid {
+		return "", errors.New("недійсний токен")
+	}
+
+	return claims.UserID, nil
+}
+
+// 2. Метод для генерації токена
+func (s *AuthService) GenerateAccessToken(userID string) (string, error) {
+	expirationTime := time.Now().Add(24 * time.Hour) // Час життя токена
+
+	claims := &Claims{
+		UserID: userID,
+		RegisteredClaims: jwt.RegisteredClaims{
+			ExpiresAt: jwt.NewNumericDate(expirationTime),
+		},
+	}
+
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+	return token.SignedString(jwtKey)
+}
+func (s *AuthService) RefreshToken(ctx context.Context, authHeader string) (string, error) {
+	if authHeader == "" {
+		return "", errors.New("відсутній заголовок Authorization")
+	}
+
+	// Прибираємо "Bearer "
+	tokenString := authHeader[7:]
+
+	// Парсимо старий токен
+	userID, err := s.ParseToken(tokenString)
+	if err != nil {
+		return "", err
+	}
+
+	// Генеруємо новий
+	return s.GenerateAccessToken(userID)
+}

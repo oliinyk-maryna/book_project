@@ -4,122 +4,181 @@ import { API_URL } from '../config';
 import { userApi } from '../api/user.api';
 import toast from 'react-hot-toast';
 
-/* ── Модалка підписники/підписки з розумним визначенням статусів ─────── */
-function ConnectionsModal({ type, profileUserId, loggedInUserId, onClose, handleNavigate }) {
-  const [people, setPeople]     = useState([]);
-  const [query, setQuery]       = useState('');
-  const [loading, setLoading]   = useState(true);
+/* ── Модалка підписники/підписки з рекомендаціями + пошуком ─────── */
+function ConnectionsModal({ type, userId, onClose, handleNavigate }) {
+  const [people, setPeople] = useState([]);
+  const [recoms, setRecoms] = useState([]);
+  const [query, setQuery] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [isSearching, setIsSearching] = useState(false);
+  const [searchResults, setSearchResults] = useState([]);
+  
   const title = type === 'followers' ? 'Підписники' : 'Підписки';
 
+  // 1. ФІКСАЦІЯ ФОНУ (Блокуємо скрол і запобігаємо стрибку сторінки)
+  useEffect(() => {
+    const scrollbarWidth = window.innerWidth - document.documentElement.clientWidth;
+    document.body.style.overflow = 'hidden';
+    document.body.style.paddingRight = `${scrollbarWidth}px`;
+    
+    return () => {
+      document.body.style.overflow = '';
+      document.body.style.paddingRight = '';
+    };
+  }, []);
+
   const loadConnections = async () => {
-    if (!profileUserId) return;
     setLoading(true);
     try {
-      const res = await fetch(`${API_URL}/users/${profileUserId}/${type}`, {
+      const res = await fetch(`${API_URL}/users/${userId}/${type}`, {
         headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
       });
       if (res.ok) {
         const data = await res.json();
-        setPeople(Array.isArray(data) ? data : (Array.isArray(data?.users) ? data.users : []));
+        setPeople(data || []);
       } else {
         setPeople([]);
       }
-    } catch { 
-      setPeople([]); 
-    }
+    } catch { setPeople([]); }
     setLoading(false);
   };
 
+  const loadRecommended = async () => {
+    try {
+      const res = await fetch(`${API_URL}/users/search?q=`, {
+        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setRecoms((data || []).slice(0, 8));
+      }
+    } catch { setRecoms([]); }
+  };
+
   useEffect(() => {
-    if (profileUserId) {
-      loadConnections();
+    loadConnections();
+    loadRecommended();
+  }, [type, userId]);
+
+  // Глобальний пошук нових користувачів
+  useEffect(() => {
+    if (query.trim().length < 1) { // Пошук з 1 літери
+      setIsSearching(false);
+      setSearchResults([]);
+      return;
     }
-  }, [type, profileUserId]);
+    
+    setIsSearching(true);
+    const t = setTimeout(async () => {
+      try {
+        const res = await fetch(`${API_URL}/users/search?q=${encodeURIComponent(query)}`, {
+          headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
+        });
+        if (res.ok) {
+          const data = await res.json();
+          // ── ОСЬ ТУТ ФІЛЬТРУЄМО СЕБЕ ──────────────────────────────
+          // userId - це ID поточного користувача, який ми передали в пропси
+          const filtered = (data || []).filter(user => user.id !== userId);
+          setSearchResults(filtered);
+        }
+      } catch { }
+      setIsSearching(false);
+    }, 400);
+    return () => clearTimeout(t);
+  }, [query, userId]); // Додали userId в залежність
 
-  const filteredPeople = people.filter(p => 
-    p.username?.toLowerCase().includes(query.toLowerCase())
-  );
+  const isSearchActive = query.trim().length >= 1;
+  const shown = isSearchActive ? searchResults : people;
+  const showRecoms = !isSearchActive && people.length === 0;
 
-  const shown = query.trim().length > 0 ? filteredPeople : people;
-  const emptyLabel = query.trim().length > 0 ? 'Нікого не знайдено' :
-    type === 'followers' ? 'Ще немає підписників' : 'Ви ще ні на кого не підписані';
+  const emptyLabel = isSearchActive ? 'Нікого не знайдено' :
+    type === 'followers' ? 'У вас ще немає підписників' : 'Ви ще ні на кого не підписані';
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end md:items-center justify-center bg-black/40 backdrop-blur-sm">
-      <div className="w-full max-w-sm rounded-t-3xl md:rounded-3xl max-h-[80vh] flex flex-col"
-        style={{ background:'var(--c-surface)', border:'1px solid var(--c-border)' }}>
-        <div className="flex items-center justify-between px-5 py-4" style={{ borderBottom:'1px solid var(--c-border)' }}>
+    <div
+      className="fixed inset-0 z-[9999] flex items-center justify-center p-4 sm:p-6 backdrop-blur-sm animate-in fade-in duration-200"
+      style={{ background: 'rgba(0, 0, 0, 0.4)' }}
+      onClick={onClose}
+    >
+      <div
+        className="w-full max-w-sm flex flex-col rounded-3xl shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200"
+        style={{
+          background: 'var(--c-surface)',
+          border: '1px solid var(--c-border)',
+          maxHeight: '85vh'
+        }}
+        onClick={e => e.stopPropagation()}
+      >
+        {/* Шапка модалки */}
+        <div className="flex items-center justify-between px-5 py-4 shrink-0" style={{ borderBottom: '1px solid var(--c-border)' }}>
           <h3 className="font-bold text-base">{title}</h3>
-          <button onClick={onClose} className="p-2 rounded-full" style={{ background:'var(--c-bg)' }}><X className="w-4 h-4" /></button>
+          <button onClick={onClose} className="p-2 rounded-full transition-colors hover:bg-stone-100" style={{ background: 'var(--c-bg)', color: 'var(--c-text-3)' }}>
+            <X className="w-4 h-4" />
+          </button>
         </div>
 
-        <div className="px-4 py-3" style={{ borderBottom:'1px solid var(--c-border-2)' }}>
+        {/* Пошук */}
+        <div className="px-4 py-3 shrink-0" style={{ borderBottom: '1px solid var(--c-border-2)' }}>
           <div className="relative">
-            <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2" style={{ color:'var(--c-text-3)' }} />
+            <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2" style={{ color: 'var(--c-text-3)' }} />
             <input value={query} onChange={e => setQuery(e.target.value)}
-              placeholder="Пошук серед списку..."
-              className="w-full pl-8 pr-4 py-2 rounded-xl text-sm outline-none"
-              style={{ background:'var(--c-bg)', border:'1px solid var(--c-border)', color:'var(--c-text)' }} />
+              placeholder="Знайти користувачів..."
+              className="w-full pl-8 pr-4 py-2.5 rounded-xl text-sm outline-none transition-colors"
+              style={{ background: 'var(--c-bg)', border: '1px solid var(--c-border)', color: 'var(--c-text)' }} />
           </div>
         </div>
 
-        <div className="overflow-y-auto custom-scrollbar flex-1 p-3 space-y-0.5">
-          {loading ? (
-            Array.from({length:4}).map((_,i) => (
+        {/* Список */}
+        <div className="overflow-y-auto custom-scrollbar flex-1 p-2 space-y-1">
+          {loading || isSearching ? (
+            Array.from({ length: 4 }).map((_, i) => (
               <div key={i} className="flex items-center gap-3 px-3 py-2.5 animate-pulse">
-                <div className="w-9 h-9 rounded-full" style={{ background:'var(--c-surface-2)' }} />
-                <div className="h-3 rounded w-32" style={{ background:'var(--c-surface-2)' }} />
+                <div className="w-9 h-9 rounded-full" style={{ background: 'var(--c-surface-2)' }} />
+                <div className="h-3 rounded w-32" style={{ background: 'var(--c-surface-2)' }} />
               </div>
             ))
-          ) : shown.length === 0 ? (
-            <p className="text-center py-8 text-sm" style={{ color:'var(--c-text-3)' }}>{emptyLabel}</p>
-          ) : shown.map(p => {
-            const targetId = p.id || p.user_id || p.follower_id || p.following_id;
-            
-            {/* ЛОГІЧНИЙ ХАК: Якщо це список підписок поточного юзера, статус ЗАВЖДИ true (підписаний) */}
-            const baseFollowingStatus = (type === 'following' && String(profileUserId) === String(loggedInUserId))
-              ? true
-              : (p.is_following || p.is_followed || false);
-
-            return (
-              <div key={targetId || Math.random()} className="w-full block">
-                 <PersonRow 
-                   person={p} 
-                   initialFollowing={baseFollowingStatus}
-                   onNavigate={() => { if(targetId) { handleNavigate('user', targetId); onClose(); } }} 
-                 />
-              </div>
-            );
-          })}
+          ) : shown.length === 0 && !showRecoms ? (
+            <p className="text-center py-10 text-sm font-medium" style={{ color: 'var(--c-text-3)' }}>{emptyLabel}</p>
+          ) : (
+            <>
+              {showRecoms && (
+                <div className="text-center pb-4 pt-3">
+                  <p className="text-sm font-bold mb-5" style={{ color: 'var(--c-text-2)' }}>{emptyLabel}</p>
+                  <p className="text-[10px] font-bold uppercase tracking-wider text-left px-3 mb-2" style={{ color: 'var(--c-text-3)' }}>Можливо, ви знайомі:</p>
+                </div>
+              )}
+              {(showRecoms ? recoms : shown).map(p => (
+                <div key={p.id} className="w-full block cursor-pointer">
+                  <PersonRow person={p} onNavigate={() => { handleNavigate('user', p.id); onClose(); }} />
+                </div>
+              ))}
+            </>
+          )}
         </div>
       </div>
     </div>
   );
 }
-
-function PersonRow({ person, initialFollowing, onNavigate }) {
-  const [following, setFollowing] = useState(initialFollowing);
-  const targetId = person.id || person.user_id || person.follower_id || person.following_id;
-
-  // Синхронізуємо внутрішній стан, якщо помінявся початковий пропс
-  useEffect(() => {
-    setFollowing(initialFollowing);
-  }, [initialFollowing]);
-
+function PersonRow({ person, onNavigate }) {
+  const [following, setFollowing] = useState(person.is_following);
+  
   const toggle = async (e) => {
     e.stopPropagation();
-    if (!targetId) return;
-    
     const was = following;
     setFollowing(!was);
     try {
-      const method = was ? 'DELETE' : 'POST';
-      const res = await fetch(`${API_URL}/users/${targetId}/follow`, {
-        method: method,
+      const url = `${API_URL}/users/${person.id}/follow`;
+      const res = await fetch(url, {
+        method: was ? 'DELETE' : 'POST',
         headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
       });
-      if (!res.ok) setFollowing(was);
-    } catch { setFollowing(was); }
+      if (!res.ok) throw new Error();
+      // Оновлюємо лічильники підписок на головній сторінці профілю
+      window.dispatchEvent(new Event('app:refresh'));
+    } catch { 
+      setFollowing(was);
+      toast.error('Помилка дії'); 
+    }
   };
 
   return (
@@ -129,11 +188,11 @@ function PersonRow({ person, initialFollowing, onNavigate }) {
         {person.avatar_url ? <img src={person.avatar_url} className="w-full h-full object-cover" alt="" onError={e=>e.target.style.display='none'} /> : person.username?.[0]?.toUpperCase()}
       </div>
       <div className="flex-1 min-w-0">
-        <p className="text-sm font-bold truncate">{person.username}</p>
+        <p className="text-sm font-bold truncate" style={{ color:'var(--c-text)' }}>{person.username}</p>
         {person.bio && <p className="text-xs truncate" style={{ color:'var(--c-text-3)' }}>{person.bio}</p>}
       </div>
       <button onClick={toggle}
-        className="flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-bold shrink-0 transition-all"
+        className="flex items-center gap-1 px-3 py-1.5 rounded-full text-[11px] font-bold shrink-0 transition-all"
         style={following
           ? { background:'var(--c-bg)', border:'1px solid var(--c-border)', color:'var(--c-text-2)' }
           : { background:'var(--c-primary)', color:'#fff' }}>
@@ -346,7 +405,7 @@ export default function ProfilePage({ handleNavigate, handleLogout, currentUser,
         )}
       </section>
 
-      {modal && <ConnectionsModal type={modal} currentUserId={currentUser?.id} onClose={() => setModal(null)} handleNavigate={handleNavigate} />}
+      {modal && <ConnectionsModal type={modal} userId={currentUser.id} onClose={() => setModal(null)} handleNavigate={handleNavigate} />}
     </main>
   );
 }

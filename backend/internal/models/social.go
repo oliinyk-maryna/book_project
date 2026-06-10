@@ -16,20 +16,6 @@ type FriendRequest struct {
 	CreatedAt    time.Time `json:"created_at"`
 }
 
-type UserProfile struct {
-	ID             uuid.UUID `json:"id"`
-	Username       string    `json:"username"`
-	AvatarURL      *string   `json:"avatar_url"`
-	Bio            *string   `json:"bio"`
-	FollowersCount int       `json:"followers_count"`
-	FollowingCount int       `json:"following_count"`
-	FriendsCount   int       `json:"friends_count"`
-	BooksRead      int       `json:"books_read"`
-	IsFollowing    bool      `json:"is_following"`
-	IsFriend       bool      `json:"is_friend"`
-	FriendStatus   string    `json:"friend_status,omitempty"`
-}
-
 type ActivityEvent struct {
 	ID          uuid.UUID  `json:"id"`
 	ActorID     uuid.UUID  `json:"actor_id"`

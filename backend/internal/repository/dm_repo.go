@@ -78,7 +78,7 @@ func (r *DMRepository) GetConversations(ctx context.Context, userID string) ([]m
 		if err := rows.Scan(&c.ID, &otherID, &otherName, &otherAvatar, &lastMsg, &c.UnreadCount, &c.UpdatedAt); err != nil {
 			continue
 		}
-		c.OtherUser = &models.UserProfile{ID: otherID, Username: otherName, AvatarURL: &otherAvatar}
+		c.OtherUser = &models.UserProfile{ID: otherID.String(), Username: otherName, AvatarURL: &otherAvatar}
 		if lastMsg != nil {
 			c.LastMessage = *lastMsg
 		}

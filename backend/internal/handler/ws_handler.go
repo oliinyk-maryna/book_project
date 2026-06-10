@@ -145,15 +145,24 @@ func (h *WSHandler) readPump(client *WSClient, conn *websocket.Conn, username, a
 			msgID := uuid.New()
 			incoming.MessageID = msgID.String()
 
+			// Парсимо reply_to_id якщо передано
+			var replyToUUID *uuid.UUID
+			if incoming.ReplyToID != "" {
+				if parsed, err := uuid.Parse(incoming.ReplyToID); err == nil {
+					replyToUUID = &parsed
+				}
+			}
+
 			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 			h.clubRepo.SaveMessage(ctx, models.ChatMessage{
-				ID:       msgID,
-				ClubID:   uuidPtr(client.ClubID),
-				UserID:   uuid.MustParse(client.UserID),
-				Username: username,
-				Content:  incoming.Content,
-				Type:     incoming.MessageType,
-				PageRef:  incoming.PageRef,
+				ID:        msgID,
+				ClubID:    uuidPtr(client.ClubID),
+				UserID:    uuid.MustParse(client.UserID),
+				Username:  username,
+				Content:   incoming.Content,
+				Type:      incoming.MessageType,
+				PageRef:   incoming.PageRef,
+				ReplyToID: replyToUUID,
 			})
 			cancel()
 

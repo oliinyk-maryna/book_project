@@ -172,3 +172,16 @@ func (h *AuthHandler) ResetPassword(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]string{"message": "Пароль успішно змінено"})
 }
+
+func (h *AuthHandler) Refresh(w http.ResponseWriter, r *http.Request) {
+	// Припускаємо, що у тебе є метод у сервісі, наприклад RefreshToken
+	// Якщо в сервісі метод називається RefreshToken, виклич його:
+	token, err := h.authService.RefreshToken(r.Context(), r.Header.Get("Authorization"))
+	if err != nil {
+		http.Error(w, "Не вдалося оновити токен", http.StatusUnauthorized)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]string{"token": token})
+}

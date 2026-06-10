@@ -33,24 +33,27 @@ func (s *SocialService) FollowUser(ctx context.Context, followerID, followingID 
 		return err
 	}
 
-	// 2. Створюємо автоматичне сповіщення для користувача, на якого підписались!
+	// 2. Отримуємо username підписника для сповіщення
+	followerUsername := "Хтось"
+	if uname, err := s.socialRepo.GetUsernameByID(ctx, followerID); err == nil {
+		followerUsername = uname
+	}
+
+	// 3. Сповіщення з конкретним ім'ям
 	if s.notificationRepo != nil {
-		// Парсимо followerID у UUID для поля entity_id у сповіщенні
 		parsedID, parseErr := uuid.Parse(followerID)
 		var entityIDPtr *uuid.UUID
 		if parseErr == nil {
 			entityIDPtr = &parsedID
 		}
-
-		// Відправляємо сповіщення
 		_ = s.notificationRepo.Create(
-			ctx, 
-			followingID,       // Кому відправляємо (той, на кого підписалися)
-			"new_follower",    // Тип сповіщення
-			"Новий підписник!", // Заголовок
-			"На вас підписався новий користувач.", // Тіло
-			entityIDPtr,       // ID підписника, щоб при кліку перейти на його профіль
-			"user",            // Тип сутності
+			ctx,
+			followingID,
+			"new_follower",
+			"Новий підписник!",
+			followerUsername+" підписався на вас.",
+			entityIDPtr,
+			"user",
 		)
 	}
 

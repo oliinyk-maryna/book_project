@@ -27,6 +27,7 @@ type Club struct {
 	IsPrivate      bool        `json:"is_private"`
 	MembersCount   int         `json:"members_count"`
 	DiscussionDate *time.Time  `json:"discussion_date,omitempty"`
+	StartedAt      *time.Time  `json:"started_at,omitempty"`
 	CurrentPage    int         `json:"current_page_limit"`
 	Milestones     []Milestone `json:"milestones,omitempty"`
 	UserRole       string      `json:"user_role,omitempty"` // admin, member, "" (не учасник)
@@ -77,13 +78,14 @@ type GroupMember struct {
 
 // Запит на створення клубу
 type CreateClubRequest struct {
-	Name        string `json:"name"`
-	Description string `json:"description"`
-	WorkID      string `json:"work_id"`
-	EditionID   string `json:"edition_id,omitempty"`
-	MinMembers  int    `json:"min_members"`
-	MaxMembers  int    `json:"max_members"`
-	IsPrivate   bool   `json:"is_private"`
+	Name           string  `json:"name"`
+	Description    string  `json:"description"`
+	WorkID         string  `json:"work_id"`
+	EditionID      string  `json:"edition_id,omitempty"`
+	MinMembers     int     `json:"min_members"`
+	MaxMembers     int     `json:"max_members"`
+	IsPrivate      bool    `json:"is_private"`
+	DiscussionDate *string `json:"discussion_date,omitempty"`
 }
 
 // Запит на додавання milestone

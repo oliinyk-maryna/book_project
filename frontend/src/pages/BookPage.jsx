@@ -2,7 +2,8 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { 
   ArrowLeft, Star, BookOpen, Users, FileText, Bookmark, 
-  Calendar, Loader2, Info, Check, Plus, ChevronDown, Trash2 
+  Calendar, Loader2, Info, Check, Plus, ChevronDown, Trash2,
+  Lock, X, ChevronRight
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { API_URL } from '../config';
@@ -19,6 +20,182 @@ const token = () => localStorage.getItem('token');
 const authH = () => ({ Authorization: `Bearer ${token()}`, 'Content-Type': 'application/json' });
 
 /* ── КОМПОНЕНТ РЕЙТИНГУ (ЗІРОЧКИ) ──────────────────────────────── */
+/* ── КАРТОЧКА КЛУБУ З МОДАЛЬНИМ ПЕРЕГЛЯДОМ ──────────────────────── */
+const CLUB_STATUS_META = {
+  recruiting:  { label: 'Набір', cls: 'bg-emerald-50 text-emerald-700 border border-emerald-200' },
+  active:      { label: 'Активний', cls: 'bg-blue-50 text-blue-700 border border-blue-200' },
+  discussing:  { label: 'Обговорення', cls: 'bg-amber-50 text-amber-700 border border-amber-200' },
+  closed:      { label: 'Завершено', cls: 'bg-stone-100 text-stone-500 border border-stone-200' },
+  private:     { label: 'Приватний', cls: 'bg-slate-50 text-slate-500 border border-slate-200' },
+};
+
+function ClubDetailModal({ club, onClose, onJoin, isMember, isFull }) {
+  const st = CLUB_STATUS_META[club.status] || CLUB_STATUS_META.recruiting;
+  const canJoin = !isMember && !isFull && !club.is_private && club.status === 'recruiting';
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4 animate-in fade-in duration-150">
+      <div className="w-full max-w-sm rounded-3xl shadow-xl overflow-hidden animate-in slide-in-from-bottom-4 duration-250"
+        style={{ background: 'var(--c-surface)', border: '1px solid var(--c-border)' }}>
+
+        {/* Шапка з обкладинкою */}
+        <div className="relative h-28 overflow-hidden flex items-end px-4 pb-3" style={{ background: 'var(--c-surface-2)' }}>
+          {club.book_cover
+            ? <img src={club.book_cover} alt="" className="absolute inset-0 w-full h-full object-cover opacity-30 blur-sm scale-105" />
+            : <div className="absolute inset-0" style={{ background: 'linear-gradient(135deg, var(--c-primary) 0%, #1a361d 100%)', opacity: 0.4 }} />
+          }
+          <div className="absolute inset-0 bg-gradient-to-t from-black/70 to-transparent" />
+          <div className="relative z-10 flex items-center justify-between w-full">
+            <div className="flex items-center gap-2">
+              {club.is_private && <Lock className="w-3.5 h-3.5 text-amber-300 shrink-0" />}
+              <h3 className="text-white font-bold text-base line-clamp-1">{club.name}</h3>
+            </div>
+            <button onClick={onClose} className="p-1.5 rounded-full bg-white/20 hover:bg-white/30 transition-colors">
+              <X className="w-4 h-4 text-white" />
+            </button>
+          </div>
+        </div>
+
+        <div className="p-5 space-y-4">
+          {/* Статус і учасники */}
+          <div className="flex items-center gap-3 flex-wrap">
+            <span className={`text-[10px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-lg ${st.cls}`}>{st.label}</span>
+            <div className="flex items-center gap-1.5 text-sm font-bold" style={{ color: 'var(--c-text-2)' }}>
+              <Users className="w-4 h-4" />
+              <span>{club.members_count || 0} / {club.max_members || '∞'} учасників</span>
+            </div>
+            {isFull && <span className="text-[10px] font-bold text-red-500 bg-red-50 px-2 py-0.5 rounded-lg">Заповнений</span>}
+          </div>
+
+          {/* Опис */}
+          {club.description && (
+            <p className="text-sm leading-relaxed" style={{ color: 'var(--c-text-2)' }}>
+              {club.description}
+            </p>
+          )}
+
+          {/* Деталі */}
+          <div className="space-y-2">
+            {club.creator_name && (
+              <div className="flex items-center gap-2 text-xs" style={{ color: 'var(--c-text-3)' }}>
+                <Users className="w-3.5 h-3.5 shrink-0" />
+                <span>Організатор: <span className="font-semibold" style={{ color: 'var(--c-text)' }}>@{club.creator_name}</span></span>
+              </div>
+            )}
+            {club.discussion_date && (
+              <div className="flex items-center gap-2 text-xs" style={{ color: 'var(--c-text-3)' }}>
+                <Calendar className="w-3.5 h-3.5 shrink-0" />
+                <span>Дата обговорення: <span className="font-semibold" style={{ color: 'var(--c-text)' }}>
+                  {new Date(club.discussion_date).toLocaleDateString('uk-UA', { day: 'numeric', month: 'long', year: 'numeric' })}
+                </span></span>
+              </div>
+            )}
+          </div>
+
+          {/* Кнопки */}
+          <div className="flex gap-2 pt-1">
+            <button onClick={onClose}
+              className="flex-1 py-2.5 rounded-xl text-sm font-semibold transition-colors"
+              style={{ background: 'var(--c-surface-2)', color: 'var(--c-text-2)' }}>
+              Закрити
+            </button>
+            {isMember ? (
+              <div className="flex-1 py-2.5 rounded-xl text-sm font-bold text-center"
+                style={{ background: 'var(--c-primary-muted)', color: 'var(--c-primary)' }}>
+                ✓ Ви учасник
+              </div>
+            ) : canJoin ? (
+              <button
+                onClick={() => { onJoin(club.id); onClose(); }}
+                className="flex-1 py-2.5 rounded-xl text-sm font-bold text-white transition-all hover:opacity-90 flex items-center justify-center gap-1.5"
+                style={{ background: 'var(--c-primary)' }}>
+                <Plus className="w-4 h-4" /> Вступити
+              </button>
+            ) : club.is_private ? (
+              <div className="flex-1 py-2.5 rounded-xl text-sm font-bold text-center"
+                style={{ background: 'var(--c-surface-2)', color: 'var(--c-text-3)' }}>
+                <Lock className="w-4 h-4 inline mr-1" /> Закритий
+              </div>
+            ) : (
+              <div className="flex-1 py-2.5 rounded-xl text-sm font-bold text-center"
+                style={{ background: 'var(--c-surface-2)', color: 'var(--c-text-3)' }}>
+                Набір завершено
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ClubInfoCard({ club, isMember, isFull, onJoin }) {
+  const [showModal, setShowModal] = useState(false);
+  const st = CLUB_STATUS_META[club.status] || CLUB_STATUS_META.recruiting;
+  const canJoin = !isMember && !isFull && !club.is_private && club.status === 'recruiting';
+
+  return (
+    <>
+      <div className="flex items-center gap-3 p-3 rounded-2xl transition-colors cursor-pointer"
+        style={{ background: 'var(--c-surface)', border: '1px solid var(--c-border)' }}
+        onClick={() => setShowModal(true)}>
+        {/* Обкладинка */}
+        <div className="w-10 h-14 rounded-xl overflow-hidden shrink-0" style={{ background: 'var(--c-surface-2)' }}>
+          {club.book_cover
+            ? <img src={club.book_cover} alt="" className="w-full h-full object-cover" />
+            : <div className="w-full h-full flex items-center justify-center"><BookOpen className="w-4 h-4" style={{ color: 'var(--c-text-3)' }} /></div>
+          }
+        </div>
+
+        {/* Інформація */}
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 mb-0.5">
+            {club.is_private && <Lock className="w-3 h-3 shrink-0" style={{ color: 'var(--c-text-3)' }} />}
+            <p className="text-sm font-bold truncate" style={{ color: 'var(--c-text)' }}>{club.name}</p>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className={`text-[9px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded ${st.cls}`}>{st.label}</span>
+            <span className="text-xs" style={{ color: 'var(--c-text-3)' }}>
+              <Users className="w-3 h-3 inline mr-0.5" />{club.members_count || 0}/{club.max_members || '∞'}
+            </span>
+          </div>
+          {club.description && (
+            <p className="text-xs mt-0.5 line-clamp-1" style={{ color: 'var(--c-text-3)' }}>{club.description}</p>
+          )}
+        </div>
+
+        {/* Кнопка дії */}
+        <div className="shrink-0">
+          {isMember ? (
+            <span className="text-[10px] font-bold px-2 py-1 rounded-lg"
+              style={{ background: 'var(--c-primary-muted)', color: 'var(--c-primary)' }}>
+              Учасник
+            </span>
+          ) : canJoin ? (
+            <button
+              onClick={(e) => { e.stopPropagation(); onJoin(club.id); }}
+              className="text-[10px] font-black uppercase tracking-widest px-2.5 py-1.5 rounded-xl text-white transition-all hover:opacity-90"
+              style={{ background: 'var(--c-primary)' }}>
+              + Вступити
+            </button>
+          ) : (
+            <ChevronRight className="w-4 h-4" style={{ color: 'var(--c-text-3)' }} />
+          )}
+        </div>
+      </div>
+
+      {showModal && (
+        <ClubDetailModal
+          club={club}
+          onClose={() => setShowModal(false)}
+          onJoin={onJoin}
+          isMember={isMember}
+          isFull={isFull}
+        />
+      )}
+    </>
+  );
+}
+
 function Stars({ value, onChange, size = 6 }) {
   return (
     <div className="flex gap-1">
@@ -40,6 +217,7 @@ function Stars({ value, onChange, size = 6 }) {
 export default function BookPage({ isLoggedIn, currentUser, handleNavigate, openAuthModal }) {
   const { id } = useParams();
   const navigate = useNavigate();
+  const [selectedClubInfo, setSelectedClubInfo] = useState(null);
 
   // 1. Стейт: Основні дані
   const [book, setBook]       = useState(null);
@@ -196,31 +374,38 @@ export default function BookPage({ isLoggedIn, currentUser, handleNavigate, open
     
     setIsSaving(true);
     try {
+      // Якщо книги ще немає на полиці — спочатку додаємо
       if (!isOnShelf) {
-        await fetch(`${API_URL}/me/books/${id}`, { method: 'POST', headers: authH(), body: JSON.stringify({ status: shelf.status }) });
+        await fetch(`${API_URL}/me/books/${id}`, {
+          method: 'POST',
+          headers: authH(),
+          body: JSON.stringify({ status: shelf.status }),
+        });
       }
 
+      // PATCH зберігає всі дані включно з датами через UPSERT на бекенді
       const res = await fetch(`${API_URL}/me/books/${id}/progress`, {
-        method: 'PATCH', 
+        method: 'PATCH',
         headers: authH(),
         body: JSON.stringify({
-          current_page: Number(shelf.current_page),
+          current_page: Number(shelf.current_page) || 0,
           status:       shelf.status,
-          notes:        shelf.notes,
-          start_date:   shelf.start_date || null,
-          end_date:     shelf.end_date || null, 
+          notes:        shelf.notes   || '',
+          start_date:   shelf.start_date || '',
+          end_date:     shelf.end_date   || '',
         }),
       });
 
-      if (res.ok) { 
-        toast.success('Збережено!'); 
-        setIsOnShelf(true); 
-        await loadData(); 
-      } else { 
-        toast.error('Помилка збереження прогресу'); 
+      if (res.ok) {
+        toast.success('Збережено!');
+        setIsOnShelf(true);
+        await loadData();
+      } else {
+        const errText = await res.text().catch(() => '');
+        toast.error('Помилка збереження' + (errText ? ': ' + errText : ''));
       }
-    } catch { 
-      toast.error("Помилка з'єднання"); 
+    } catch {
+      toast.error("Помилка з'єднання");
     } finally {
       setIsSaving(false);
     }
@@ -714,13 +899,12 @@ export default function BookPage({ isLoggedIn, currentUser, handleNavigate, open
               </div>
             )
           )}
-
-          {/* Вкладка 3: СПІЛЬНОТИ */}
+{/* Вкладка 3: СПІЛЬНОТИ */}
           {tab === 'clubs' && (
             <div className="space-y-4 pt-2">
               <div className="flex justify-between items-center px-1 mb-4">
                 <p className="text-[10px] font-bold uppercase tracking-wider" style={{ color: 'var(--c-text-3)' }}>
-                  Активні клуби для цієї книги
+                  Клуби що набирають учасників
                 </p>
                 <button
                   onClick={() => navigate('/clubs', { state: { openCreate: true, book: { id: id, title: book?.title, author: book?.author || book?.authors?.join(', '), cover_url: book?.cover_url } } })}
@@ -731,37 +915,79 @@ export default function BookPage({ isLoggedIn, currentUser, handleNavigate, open
                 </button>
               </div>
 
-              {clubs.length > 0 ? (
-                <div className="space-y-3">
-                  {clubs.map(c => {
-                    const isMember = c.is_member || (Array.isArray(c.members) && c.members.some(m => m === currentUser?.id || m.id === currentUser?.id || m.user_id === currentUser?.id));
-                    return (
-                      <div key={c.id} className="p-4 rounded-2xl flex items-center justify-between transition-all hover:border-[var(--c-primary)]" style={{ background: 'var(--c-surface)', border: '1px solid var(--c-border)' }}>
-                        <div>
-                          <h4 className="font-bold text-sm" style={{ color: 'var(--c-text)' }}>{c.name}</h4>
-                          <p className="text-xs mt-0.5" style={{ color: 'var(--c-text-3)' }}>{c.members_count || 1} учасників</p>
-                        </div>
-                        {isMember ? (
-                          <button disabled className="px-5 py-2.5 rounded-xl text-xs font-bold uppercase tracking-widest opacity-60 cursor-not-allowed" style={{ background: 'var(--c-surface-2)', color: 'var(--c-text-2)' }}>Вже в клубі</button>
-                        ) : (
-                          <button onClick={() => handleJoinClub(c.id)} className="px-5 py-2.5 rounded-xl text-xs font-bold uppercase tracking-widest text-white transition-colors" style={{ background: 'var(--c-primary)' }}>Приєднатись</button>
-                        )}
+              {/* СПИСОК КЛУБІВ З КНОПКОЮ ДЕТАЛЬНІШЕ */}
+              {(() => {
+                if (!clubs || !Array.isArray(clubs)) return null;
+
+                const uniqueClubs = Array.from(new Map(clubs.map(c => [c.id, c])).values());
+                const availableClubs = uniqueClubs.filter(club => {
+    // 1. Перевірка статусу
+    const status = club.status ? String(club.status).trim().toLowerCase() : '';
+    const isRecruiting = status === 'recruiting' || status === 'набір' || status === '';
+    
+    // 2. Перевірка вільних місць
+    const max = club.max_members || 0;
+    const count = club.members_count || 0;
+    const hasSpace = max === 0 || count < max;
+
+    // 3. НОВА ПЕРЕВІРКА: Дата обговорення ще не настала
+    // Якщо дати немає взагалі (!club.discussion_date) — пропускаємо клуб далі.
+    // Якщо дата є — перевіряємо, чи вона більша за поточну хвилину.
+    const isDateValid = !club.discussion_date || new Date(club.discussion_date) > new Date();
+
+    // Клуб відображається тільки якщо всі три умови виконуються
+    return isRecruiting && hasSpace && isDateValid;
+  });
+                if (availableClubs.length === 0) {
+                  return (
+                    <div className="text-center py-8 rounded-3xl" style={{ border: '1px dashed var(--c-border)', background: 'var(--c-surface-2)' }}>
+                      <p className="text-sm" style={{ color: 'var(--c-text-3)' }}>Наразі немає відкритих клубів для набору. Створіть свій!</p>
+                    </div>
+                  );
+                }
+
+                return availableClubs.map(club => (
+                  <div 
+                    key={club.id} 
+                    className="p-4 rounded-3xl mb-4 transition-all"
+                    style={{ background: 'var(--c-surface)', border: '1px solid var(--c-border)' }}
+                  >
+                    <div className="flex justify-between items-center gap-4">
+                      <div className="flex-1 min-w-0">
+                        <h4 className="font-bold text-base truncate" style={{ color: 'var(--c-text)' }}>{club.name}</h4>
+                        <p className="text-xs mt-0.5" style={{ color: 'var(--c-text-3)' }}>
+                          Учасники: <span className="font-semibold" style={{ color: 'var(--c-text-2)' }}>{club.members_count || 0}</span> / {club.max_members || 20}
+                        </p>
                       </div>
-                    );
-                  })}
-                </div>
-              ) : (
-                <div className="text-center py-12 rounded-3xl" style={{ border: '1px dashed var(--c-border)' }}>
-                  <p className="text-sm font-semibold mb-1" style={{ color: 'var(--c-text-2)' }}>Поки що немає спільнот</p>
-                  <p className="text-xs" style={{ color: 'var(--c-text-3)' }}>Будьте першим, хто створить клуб для цієї книги!</p>
-                </div>
-              )}
+                      
+                      <div className="flex gap-2 shrink-0">
+                        <button
+                          onClick={() => setSelectedClubInfo(club)}
+                          className="px-3 py-2 rounded-xl text-xs font-semibold transition-colors"
+                          style={{ background: 'var(--c-surface-2)', color: 'var(--c-text-2)', border: '1px solid var(--c-border)' }}
+                        >
+                          Детальніше
+                        </button>
+
+                        <button
+                          onClick={() => handleJoinClub(club.id)}
+                          className="px-4 py-2 rounded-xl text-xs font-bold text-white transition-opacity hover:opacity-90"
+                          style={{ background: 'var(--c-primary)' }}
+                        >
+                          Приєднатися
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                ));
+              })()}
+              {/* Старий дублюючий блок перевірки на порожній список видалено звідси */}
             </div>
           )}
         </div>
       </main>
 
-      {/* ── МОДАЛЬНЕ ВІКНО ВИДАЛЕННЯ (ЗА МЕЖАМИ MAIN!) ─────────────── */}
+      {/* ── МОДАЛЬНЕ ВІКНО ВИДАЛЕННЯ (ОКРЕМЕ) ─────────────── */}
       {showDeleteModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm px-4 animate-fade-in">
           <div className="bg-white p-6 rounded-3xl shadow-2xl max-w-sm w-full border border-slate-100 transition-all transform scale-100">
@@ -788,6 +1014,92 @@ export default function BookPage({ isLoggedIn, currentUser, handleNavigate, open
                 className="flex-1 py-3 bg-red-600 hover:bg-red-700 text-white rounded-xl font-semibold shadow-lg shadow-red-100 transition-colors outline-none"
               >
                 Видалити
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── МОДАЛЬНЕ ВІКНО ІНФОРМАЦІЇ ПРО КЛУБ (ТЕПЕР ОКРЕМЕ І ПРАЦЮЄ!) ── */}
+      {selectedClubInfo && (
+        <div 
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 backdrop-blur-sm animate-fade-in"
+          style={{ background: 'rgba(0, 0, 0, 0.4)' }}
+          onClick={() => setSelectedClubInfo(null)}
+        >
+          <div 
+            className="w-full max-w-md p-6 rounded-3xl shadow-xl max-h-[85vh] overflow-y-auto"
+            style={{ background: 'var(--c-surface)', border: '1px solid var(--c-border)' }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Шапка модалки */}
+            <div className="flex justify-between items-start mb-4 border-b pb-3" style={{ borderColor: 'var(--c-border-2)' }}>
+              <div>
+                <span className="text-[10px] uppercase font-bold tracking-wider" style={{ color: 'var(--c-primary)' }}>
+                  Книжковий клуб
+                </span>
+                <h3 className="text-xl font-black mt-0.5" style={{ color: 'var(--c-text)' }}>
+                  {selectedClubInfo.name}
+                </h3>
+              </div>
+              <button 
+                onClick={() => setSelectedClubInfo(null)}
+                className="p-1 rounded-full text-base transition-colors hover:bg-slate-100"
+                style={{ color: 'var(--c-text-3)' }}
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Вміст модалки */}
+            <div className="space-y-4">
+              <div>
+                <h5 className="text-xs font-bold mb-1" style={{ color: 'var(--c-text-3)' }}>Про спільноту:</h5>
+                <p className="text-sm rounded-2xl p-3 leading-relaxed" style={{ background: 'var(--c-bg)', color: 'var(--c-text-2)' }}>
+                  {selectedClubInfo.description || "Опис відсутній. Організатор не додав детальної інформації про правила цього клубу."}
+                </p>
+              </div>
+
+              <div className="flex justify-between items-center p-3 rounded-2xl" style={{ border: '1px solid var(--c-border)' }}>
+                <span className="text-xs font-bold" style={{ color: 'var(--c-text-3)' }}>Наповненість:</span>
+                <span className="text-sm font-bold" style={{ color: 'var(--c-text)' }}>
+                  👥 {selectedClubInfo.members_count || 0} з {selectedClubInfo.max_members || 20} учасників
+                </span>
+              </div>
+
+              {selectedClubInfo.discussion_date && (
+                <div className="p-3 rounded-2xl" style={{ background: 'rgba(var(--c-primary-rgb), 0.05)', border: '1px solid var(--c-border)' }}>
+                  <h5 className="text-xs font-bold" style={{ color: 'var(--c-primary)' }}>📅 Дата фінального обговорення:</h5>
+                  <p className="text-sm font-bold mt-1" style={{ color: 'var(--c-text)' }}>
+                    {new Date(selectedClubInfo.discussion_date).toLocaleDateString('uk-UA', {
+                      year: 'numeric',
+                      month: 'long',
+                      day: 'numeric',
+        
+                    })}
+                  </p>
+                </div>
+              )}
+            </div>
+
+            {/* Підвал модалки */}
+            <div className="mt-6 pt-4 flex gap-2 border-t justify-end" style={{ borderColor: 'var(--c-border-2)' }}>
+              <button
+                onClick={() => setSelectedClubInfo(null)}
+                className="px-4 py-2.5 rounded-xl text-xs font-bold transition-colors"
+                style={{ background: 'var(--c-surface-2)', color: 'var(--c-text-2)' }}
+              >
+                Закрити
+              </button>
+              <button
+                onClick={() => {
+                  handleJoinClub(selectedClubInfo.id);
+                  setSelectedClubInfo(null);
+                }}
+                className="px-5 py-2.5 rounded-xl text-xs font-bold text-white transition-opacity hover:opacity-90"
+                style={{ background: 'var(--c-primary)' }}
+              >
+                Приєднатися до клубу
               </button>
             </div>
           </div>

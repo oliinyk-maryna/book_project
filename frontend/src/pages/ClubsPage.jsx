@@ -227,10 +227,6 @@ function ClubChat({ club, currentUser, onBack, onUpdate }) {
     clubsApi.getMembers(club.id).then(data => setMembers(data)).catch(() => {});
   }, [club?.id]);
 
-  useEffect(() => {
-  window.addEventListener('app:refresh', fetchClubs);
-  return () => window.removeEventListener('app:refresh', fetchClubs);
-}, [fetchClubs]);
   /* ── WebSocket ──────────────────────────────────────────────── */
   useEffect(() => {
     if (!club?.id) return;

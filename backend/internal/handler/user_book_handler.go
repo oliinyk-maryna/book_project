@@ -51,15 +51,25 @@ func (h *UserBookHandler) AddToShelf(w http.ResponseWriter, r *http.Request) {
 }
 
 // GET /api/me/books — отримати всі книги з полиці
+// GET /api/users/{id}/books або /api/me/books
 func (h *UserBookHandler) GetUserBooks(w http.ResponseWriter, r *http.Request) {
-	userID, ok := r.Context().Value(middleware.ContextUserID).(string)
-	if !ok {
-		http.Error(w, "Неавторизований доступ", http.StatusUnauthorized)
-		return
+	// 1. Спробуємо взяти ID з URL ({id})
+	userID := r.PathValue("id")
+
+	// 2. Якщо в URL немає ID, беремо ID авторизованого користувача з контексту
+	if userID == "" {
+		uid, ok := r.Context().Value(middleware.ContextUserID).(string)
+		if !ok {
+			http.Error(w, "Неавторизований доступ", http.StatusUnauthorized)
+			return
+		}
+		userID = uid
 	}
 
+	// 3. Використовуємо сервіс (а не репозиторій напряму, для дотримання архітектури)
 	books, err := h.userBookService.GetUserBooks(r.Context(), userID)
 	if err != nil {
+		// Повертаємо порожній масив, якщо книг немає, це краще ніж 500 помилка
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode([]interface{}{})
 		return

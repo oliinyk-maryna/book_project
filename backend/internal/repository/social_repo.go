@@ -3,6 +3,8 @@ package repository
 import (
 	"context"
 	"errors"
+	"fmt"
+	"log"
 
 	"book_project/backend/internal/models"
 
@@ -24,6 +26,7 @@ func (r *SocialRepository) GetProfile(ctx context.Context, targetID, viewerID st
 	var p models.UserProfile
 	var avatar, bio string
 
+	// 1. Отримуємо основну статистику та дані профілю
 	err := r.db.QueryRow(ctx, `
 		SELECT u.id, u.username, COALESCE(u.avatar_url::text, ''), COALESCE(u.bio, ''),
 			(SELECT COUNT(*) FROM user_follows WHERE following_id = u.id) AS followers,
@@ -40,6 +43,13 @@ func (r *SocialRepository) GetProfile(ctx context.Context, targetID, viewerID st
 		&p.FollowersCount, &p.FollowingCount, &p.FriendsCount, &p.BooksRead,
 		&p.IsFollowing, &p.IsFriend, &p.FriendStatus,
 	)
+	// Відразу після Query
+	if err != nil {
+		log.Printf("Помилка запиту книг: %v", err)
+		return nil, err
+	}
+	// Додай перевірку, чи взагалі прийшли рядки
+	fmt.Printf("SQL виконано для user_id: %s\n", targetID)
 
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
@@ -55,7 +65,48 @@ func (r *SocialRepository) GetProfile(ctx context.Context, targetID, viewerID st
 		p.Bio = &bio
 	}
 
+	bookRows, err := r.db.Query(ctx, `
+    SELECT w.id, w.title, w.cover_url 
+    FROM user_editions ue
+    JOIN works w ON ue.work_id = w.id
+    WHERE ue.user_id = $1::uuid AND ue.status IN ('reading', 'read', 'finished')
+    ORDER BY ue.updated_at DESC
+    LIMIT 10`,
+		targetID,
+	)
+
+	if err == nil {
+		defer bookRows.Close()
+		var books []models.BookSummary
+
+		for bookRows.Next() {
+			var b models.BookSummary
+			var coverURL *string
+
+			if err := bookRows.Scan(&b.ID, &b.Title, &coverURL); err == nil {
+				if coverURL != nil {
+					b.CoverURL = *coverURL
+				}
+				books = append(books, b)
+			}
+		}
+
+		// Якщо книг немає, ініціалізуємо порожнім масивом, щоб на фронт прийшов [], а не null
+		if books == nil {
+			books = []models.BookSummary{}
+		}
+		p.RecentBooks = books
+	} else {
+		p.RecentBooks = []models.BookSummary{} // Захист від помилок БД
+	}
+
 	return &p, nil
+}
+
+func (r *SocialRepository) GetUsernameByID(ctx context.Context, userID string) (string, error) {
+	var username string
+	err := r.db.QueryRow(ctx, `SELECT username FROM users WHERE id = $1::uuid`, userID).Scan(&username)
+	return username, err
 }
 
 func (r *SocialRepository) Follow(ctx context.Context, followerID, followingID string) error {
@@ -254,10 +305,14 @@ func (r *SocialRepository) SearchUsers(ctx context.Context, query, viewerID stri
 func (r *SocialRepository) GetConnections(ctx context.Context, userID string, connType string) ([]models.UserProfile, error) {
 	var query string
 	if connType == "followers" {
-		query = `SELECT u.id, u.username, COALESCE(u.avatar_url::text,''), COALESCE(u.bio,'')
+		// повертаємо підписників і чи поточний юзер підписаний на них у відповідь
+		query = `SELECT u.id, u.username, COALESCE(u.avatar_url::text,''), COALESCE(u.bio,''),
+                 EXISTS(SELECT 1 FROM user_follows WHERE follower_id = $1::uuid AND following_id = u.id) as is_following
                  FROM users u JOIN user_follows f ON u.id = f.follower_id WHERE f.following_id = $1::uuid`
 	} else {
-		query = `SELECT u.id, u.username, COALESCE(u.avatar_url::text,''), COALESCE(u.bio,'')
+		// підписки — is_following завжди true
+		query = `SELECT u.id, u.username, COALESCE(u.avatar_url::text,''), COALESCE(u.bio,''),
+                 true as is_following
                  FROM users u JOIN user_follows f ON u.id = f.following_id WHERE f.follower_id = $1::uuid`
 	}
 
@@ -271,7 +326,7 @@ func (r *SocialRepository) GetConnections(ctx context.Context, userID string, co
 	for rows.Next() {
 		var u models.UserProfile
 		var avatar, bio string
-		if err := rows.Scan(&u.ID, &u.Username, &avatar, &bio); err != nil {
+		if err := rows.Scan(&u.ID, &u.Username, &avatar, &bio, &u.IsFollowing); err != nil {
 			continue
 		}
 		if avatar != "" {
@@ -281,6 +336,9 @@ func (r *SocialRepository) GetConnections(ctx context.Context, userID string, co
 			u.Bio = &bio
 		}
 		users = append(users, u)
+	}
+	if users == nil {
+		users = []models.UserProfile{}
 	}
 	return users, nil
 }

@@ -29,33 +29,39 @@ func (r *NotificationRepository) Create(ctx context.Context, userID, notifType, 
 func (r *NotificationRepository) GetByUser(ctx context.Context, userID string, limit int) (*models.NotificationSummary, error) {
 	// Оновлений SQL-запит із JOIN-ами для отримання назви книги та статусу інвайту
 	rows, err := r.db.Query(ctx, `
-        SELECT 
-            n.id, 
-            n.user_id, 
-            n.type, 
-            COALESCE(n.title,''), 
-            CASE 
-                WHEN n.type IN ('INVITE_CLUB', 'club_invite') AND w.title IS NOT NULL 
-                THEN COALESCE(n.body,'') || ' (Книга: «' || w.title || '»)'
-                ELSE COALESCE(n.body,'')
-            END as body,
-            n.entity_id, 
-            COALESCE(n.entity_type,''), 
-            n.is_read, 
-            n.created_at,
-            -- Повертаємо статус інвайту
-            COALESCE(ci.status, '') as invite_status
-        FROM notifications n
-        -- ПОКРАЩЕНИЙ JOIN: шукаємо інвайт або за його власним ID, або за ID клубу + ID юзера
-        LEFT JOIN club_invites ci ON 
-            (n.entity_id = ci.id OR (ci.club_id = n.entity_id AND ci.invited_user_id = n.user_id))
-            AND n.type IN ('INVITE_CLUB', 'club_invite')
-        -- Клуб шукаємо або через знайдене запрошення, або напряму через entity_id сповіщення
-        LEFT JOIN groups g ON g.id = COALESCE(ci.club_id, n.entity_id)
-        LEFT JOIN works w ON g.work_id = w.id
-        WHERE n.user_id = $1::uuid
-        ORDER BY n.created_at DESC 
-        LIMIT $2`,
+    SELECT 
+        n.id, 
+        n.user_id, 
+        n.type, 
+        COALESCE(n.title,''), 
+        CASE 
+            WHEN n.type IN ('INVITE_CLUB', 'club_invite') AND w.title IS NOT NULL 
+            THEN COALESCE(n.body,'') || ' (Книга: «' || w.title || '»)'
+            -- ПІДТРИМКА І НОВИХ (follow), І СТАРИХ (new_follower) СПОВІЩЕНЬ
+            WHEN n.type IN ('follow', 'new_follower') AND u.username IS NOT NULL 
+            THEN '@' || u.username || ' підписався(лась) на вас'
+            ELSE COALESCE(n.body,'')
+        END as body,
+        n.entity_id, 
+        COALESCE(n.entity_type,''), 
+        n.is_read, 
+        n.created_at,
+        -- Визначаємо статус підписки
+        CASE 
+            WHEN n.type IN ('follow', 'new_follower') THEN 
+                CASE WHEN f.following_id IS NOT NULL THEN 'following' ELSE 'not_following' END
+            ELSE COALESCE(ci.status, '')
+        END as status
+    FROM notifications n
+    LEFT JOIN club_invites ci ON (n.entity_id = ci.id OR (ci.club_id = n.entity_id AND ci.invited_user_id = n.user_id)) AND n.type IN ('INVITE_CLUB', 'club_invite')
+    LEFT JOIN groups g ON g.id = COALESCE(ci.club_id, n.entity_id)
+    LEFT JOIN works w ON g.work_id = w.id
+    -- JOIN ДЛЯ ПІДПИСОК (шукаємо обидва типи)
+    LEFT JOIN users u ON n.entity_id = u.id AND n.type IN ('follow', 'new_follower')
+    LEFT JOIN user_follows f ON f.follower_id = $1::uuid AND f.following_id = n.entity_id AND n.type IN ('follow', 'new_follower')
+    WHERE n.user_id = $1::uuid
+    ORDER BY n.created_at DESC 
+    LIMIT $2`,
 		userID, limit,
 	)
 	if err != nil {

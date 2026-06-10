@@ -20,22 +20,23 @@ func NewUserBookRepository(db *pgxpool.Pool) *UserBookRepository {
 
 // AddWorkToShelf — додає або оновлює книгу на полиці за workID
 func (r *UserBookRepository) AddWorkToShelf(ctx context.Context, userID, workID, status string) error {
-	// Визначаємо кількість сторінок (беремо з першого-ліпшого видання або 1)
 	var totalPages int
 	err := r.db.QueryRow(ctx, `SELECT COALESCE(page_count, 1) FROM editions WHERE work_id = $1::uuid LIMIT 1`, workID).Scan(&totalPages)
 	if err != nil {
-		totalPages = 1 // Якщо видання немає, ставимо 1
+		totalPages = 1
 	}
 
+	// ON CONFLICT — оновлюємо тільки статус, НЕ чіпаємо дати та прогрес
 	_, err = r.db.Exec(ctx, `
 		INSERT INTO user_editions (user_id, work_id, status, total_pages)
 		VALUES ($1::uuid, $2::uuid, $3::reading_status, $4)
 		ON CONFLICT (user_id, work_id)
-		DO UPDATE SET status = EXCLUDED.status::reading_status, updated_at = CURRENT_TIMESTAMP`,
+		DO UPDATE SET
+			status = EXCLUDED.status::reading_status,
+			updated_at = CURRENT_TIMESTAMP`,
 		userID, workID, status, totalPages,
 	)
 
-	// ДОДАЄМО В АКТИВНІСТЬ
 	if err == nil {
 		r.db.Exec(ctx, `INSERT INTO activity_feed(actor_id, type, work_id) VALUES($1::uuid, 'add_book', $2::uuid) ON CONFLICT DO NOTHING`, userID, workID)
 	}
@@ -48,28 +49,31 @@ func (r *UserBookRepository) UpdateProgress(ctx context.Context, userID, workID 
 	var totalPages int
 	var dbStartedAt, dbFinishedAt *time.Time
 
-	selectQuery := `
-		SELECT COALESCE(total_pages, 0), started_at, finished_at 
-		FROM user_editions 
-		WHERE user_id = $1 AND work_id = $2
-	`
-	err := r.db.QueryRow(ctx, selectQuery, userID, workID).Scan(&totalPages, &dbStartedAt, &dbFinishedAt)
+	err := r.db.QueryRow(ctx, `
+		SELECT COALESCE(total_pages, 0), started_at, finished_at
+		FROM user_editions
+		WHERE user_id = $1 AND work_id = $2`,
+		userID, workID,
+	).Scan(&totalPages, &dbStartedAt, &dbFinishedAt)
+
 	if err != nil {
-		totalPages = 0
+		// Рядка ще немає — отримуємо total_pages з editions
+		r.db.QueryRow(ctx, `SELECT COALESCE(page_count, 1) FROM editions WHERE work_id = $1::uuid LIMIT 1`, workID).Scan(&totalPages)
+		if totalPages == 0 {
+			totalPages = 1
+		}
 	}
 
-	// 2. ПРАВИЛО: Коли "прочитано" -> кількість сторінок максимум
+	// 2. Правила статусу
 	if status == "read" && totalPages > 0 {
 		currentPage = totalPages
 	}
-
-	// 3. ПРАВИЛО: Якщо максимальна кількість сторінок -> статус "прочитано"
 	if totalPages > 0 && currentPage >= totalPages {
 		status = "read"
-		currentPage = totalPages // Запобігає виходу за межі (наприклад 305/300)
+		currentPage = totalPages
 	}
 
-	// ЗАХИСТ ВІД ЗАТИРАННЯ ДАТ
+	// 3. Захист від затирання дат — якщо фронт не передав дату, беремо з БД
 	if startDate == nil {
 		startDate = dbStartedAt
 	}
@@ -77,18 +81,19 @@ func (r *UserBookRepository) UpdateProgress(ctx context.Context, userID, workID 
 		endDate = dbFinishedAt
 	}
 
-	// Оновлення запису
-	query := `
-		UPDATE user_editions 
-		SET status = $1::reading_status, 
-			current_page = $2, 
-			notes = $3, 
-			started_at = $4, 
-			finished_at = $5, 
-			updated_at = CURRENT_TIMESTAMP
-		WHERE user_id = $6 AND work_id = $7
-	`
-	_, err = r.db.Exec(ctx, query, status, currentPage, notes, startDate, endDate, userID, workID)
+	// 4. UPSERT — вставляємо або оновлюємо (обидва шляхи зберігають дати)
+	_, err = r.db.Exec(ctx, `
+		INSERT INTO user_editions (user_id, work_id, status, current_page, notes, started_at, finished_at, total_pages, updated_at)
+		VALUES ($6, $7, $1::reading_status, $2, $3, $4, $5, $8, CURRENT_TIMESTAMP)
+		ON CONFLICT (user_id, work_id) DO UPDATE SET
+			status      = EXCLUDED.status::reading_status,
+			current_page = EXCLUDED.current_page,
+			notes       = EXCLUDED.notes,
+			started_at  = EXCLUDED.started_at,
+			finished_at = EXCLUDED.finished_at,
+			updated_at  = CURRENT_TIMESTAMP`,
+		status, currentPage, notes, startDate, endDate, userID, workID, totalPages,
+	)
 	return err
 }
 

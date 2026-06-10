@@ -339,7 +339,31 @@ export default function AdminPage() {
       await adminApi.setUserRole(id, role);
       toast.success('Роль змінено');
       setUsers(p => p.map(u => u.id === id ? { ...u, role } : u));
-    } catch { toast.error('Помилка'); }
+
+      // Якщо змінили роль поточного користувача — оновлюємо токен
+      const currentUserId = (() => {
+        try {
+          const token = localStorage.getItem('token');
+          if (!token) return null;
+          const payload = JSON.parse(atob(token.split('.')[1]));
+          return payload.user_id;
+        } catch { return null; }
+      })();
+
+      if (currentUserId === id) {
+        try {
+          const res = await fetch(
+            (import.meta.env.VITE_API_URL || 'http://localhost:8080/api') + '/me/refresh-token',
+            { method: 'POST', headers: { Authorization: `Bearer ${localStorage.getItem('token')}` } }
+          );
+          if (res.ok) {
+            const data = await res.json();
+            localStorage.setItem('token', data.token);
+            toast.success('Ваш токен оновлено — перезавантажте сторінку');
+          }
+        } catch {}
+      }
+    } catch { toast.error('Помилка зміни ролі'); }
   };
 
   const delReview = (r) => ask(

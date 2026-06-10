@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { ArrowLeft, UserPlus, UserCheck, BookOpen, Loader2 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { userApi } from '../api/user.api';
+import { API_URL } from '../config';
 
 export default function UserProfilePage({ isLoggedIn, currentUser, handleNavigate }) {
   const { id }    = useParams();
@@ -13,23 +14,29 @@ export default function UserProfilePage({ isLoggedIn, currentUser, handleNavigat
   const [isFollowing, setFollowing] = useState(false);
 
   useEffect(() => {
-    // Якщо користувач перейшов на свій власний ID — перекидаємо на його особисту сторінку
-    if (currentUser?.id === id) { 
-      navigate('/profile', { replace: true }); 
-      return; 
+  if (currentUser?.id === id) { 
+    navigate('/profile', { replace: true }); 
+    return; 
+  }
+  
+ Promise.allSettled([
+    userApi.getUser(id),
+    fetch(`${API_URL}/users/${id}/books`).then(res => res.json())
+  ])
+  .then(([profileResult, booksResult]) => {
+    if (profileResult.status === 'fulfilled') {
+      setProfile(profileResult.value);
+      setFollowing(profileResult.value.is_following);
     }
-    
-    userApi.getUser(id)
-      .then(data => { 
-        setProfile(data); 
-        setFollowing(data.is_following); 
-      })
-      .catch(() => { 
-        toast.error('Користувача не знайдено'); 
-        navigate(-1); 
-      })
-      .finally(() => setLoading(false));
-  }, [id, currentUser, navigate]);
+    if (booksResult.status === 'fulfilled') {
+      setProfile(p => ({ ...p, recent_books: booksResult.value }));
+    }
+  })
+  .catch(() => { 
+    toast.error('Не вдалося завантажити дані');
+  })
+  .finally(() => setLoading(false));
+}, [id, currentUser, navigate]);
 
   const toggleFollow = async () => {
     if (!isLoggedIn) return toast.error('Спочатку увійдіть в акаунт');

@@ -63,12 +63,19 @@ func (r *GroupRepository) CreateClub(ctx context.Context, req models.CreateClubR
 
 	err = tx.QueryRow(ctx, `
 		INSERT INTO groups (name, description, creator_id, work_id, edition_id, invite_code,
-			status, min_members, max_members, is_private, is_temporary)
-		VALUES ($1, $2, $3::uuid, $4, $5, $6, $7::club_status, $8, $9, $10, false)
+			status, min_members, max_members, is_private, is_temporary, discussion_date)
+		VALUES ($1, $2, $3::uuid, $4, $5, $6, $7::club_status, $8, $9, $10, false,
+			CASE WHEN $11 = '' THEN NULL ELSE $11::timestamptz END)
 		RETURNING id, name, description, creator_id, COALESCE(invite_code,''), status::text,
 			min_members, max_members, is_private, created_at, updated_at`,
 		req.Name, req.Description, creatorID, workUUID, editionUUID, inviteCode,
 		status, minM, maxM, req.IsPrivate,
+		func() string {
+			if req.DiscussionDate != nil {
+				return *req.DiscussionDate
+			}
+			return ""
+		}(),
 	).Scan(
 		&club.ID, &club.Name, &club.Description, &club.CreatorID, &club.InviteCode, &club.Status,
 		&club.MinMembers, &club.MaxMembers, &club.IsPrivate, &club.CreatedAt, &club.UpdatedAt,
@@ -304,7 +311,20 @@ func (r *GroupRepository) JoinClub(ctx context.Context, clubID, userID string) e
 		ON CONFLICT DO NOTHING`,
 		clubID, userID,
 	)
-	return err
+	if err != nil {
+		return err
+	}
+
+	// Якщо після приєднання клуб заповнений — автоматично змінюємо статус на 'active'
+	newCount := currentCount + 1
+	if newCount >= maxM && status == "recruiting" {
+		_, _ = r.db.Exec(ctx,
+			`UPDATE groups SET status = 'active' WHERE id = $1::uuid AND status = 'recruiting'`,
+			clubID,
+		)
+	}
+
+	return nil
 }
 
 func (r *GroupRepository) LeaveClub(ctx context.Context, clubID, userID string) error {
@@ -493,13 +513,15 @@ func (r *GroupRepository) SaveMessage(ctx context.Context, msg models.ChatMessag
 	return err
 }
 func (r *GroupRepository) GetRecentMessages(ctx context.Context, clubID string, limit int) ([]models.ChatMessage, error) {
-	// Вибрано всі необхідні поля без CASE WHEN is_deleted
 	rows, err := r.db.Query(ctx, `
-		SELECT id, club_id, user_id, COALESCE(username,''), content, 
-		type::text, page_ref, reply_to_id, is_deleted, is_edited, created_at
-		FROM chat_messages 
-		WHERE club_id = $1::uuid
-		ORDER BY created_at DESC LIMIT $2`, clubID, limit,
+		SELECT m.id, m.club_id, m.user_id, COALESCE(m.username,''), m.content,
+		m.type::text, m.page_ref, m.reply_to_id, m.is_deleted, m.is_edited, m.created_at,
+		-- replied-to message fields
+		r.id, COALESCE(r.username,''), COALESCE(r.content,'')
+		FROM chat_messages m
+		LEFT JOIN chat_messages r ON r.id = m.reply_to_id
+		WHERE m.club_id = $1::uuid
+		ORDER BY m.created_at DESC LIMIT $2`, clubID, limit,
 	)
 	if err != nil {
 		return nil, err
@@ -509,17 +531,22 @@ func (r *GroupRepository) GetRecentMessages(ctx context.Context, clubID string, 
 	var msgs []models.ChatMessage
 	for rows.Next() {
 		var m models.ChatMessage
-		// Скануємо всі поля, включаючи is_deleted та is_edited
+		var replyID *string
+		var replyUsername, replyContent string
 		if err := rows.Scan(
 			&m.ID, &m.ClubID, &m.UserID, &m.Username, &m.Content,
 			&m.Type, &m.PageRef, &m.ReplyToID, &m.IsDeleted, &m.IsEdited, &m.CreatedAt,
+			&replyID, &replyUsername, &replyContent,
 		); err != nil {
-			continue // або можна повертати помилку залежно від того, як ви хочете обробляти сканування
+			continue
+		}
+		if replyID != nil && *replyID != "" {
+			m.ReplyTo = &models.ChatMessage{Username: replyUsername, Content: replyContent}
 		}
 		msgs = append(msgs, m)
 	}
 
-	// Розвертаємо масив, щоб повідомлення були у хронологічному порядку
+	// Розвертаємо масив у хронологічний порядок
 	for i, j := 0, len(msgs)-1; i < j; i, j = i+1, j-1 {
 		msgs[i], msgs[j] = msgs[j], msgs[i]
 	}

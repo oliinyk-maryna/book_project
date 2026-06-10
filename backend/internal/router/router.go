@@ -68,6 +68,7 @@ func NewRouter(db *pgxpool.Pool) http.Handler {
 	mux.HandleFunc("POST /api/login", authHandler.Login)
 	mux.HandleFunc("GET /api/profile", middleware.Auth(authHandler.GetProfile))
 	mux.HandleFunc("PUT /api/profile/update", middleware.Auth(authHandler.UpdateProfile))
+	mux.HandleFunc("POST /api/me/refresh-token", middleware.Auth(authHandler.Refresh))
 
 	// ════════════════════════════════════════════════════════════════════════
 	// КНИГИ
@@ -114,6 +115,8 @@ func NewRouter(db *pgxpool.Pool) http.Handler {
 	mux.HandleFunc("PATCH /api/me/books/{id}/progress", middleware.Auth(userBookHandler.UpdateProgress))
 	mux.HandleFunc("DELETE /api/me/books/{id}", middleware.Auth(userBookHandler.RemoveFromShelf))
 	mux.HandleFunc("POST /api/me/books/{id}/sessions", middleware.Auth(bookHandler.AddReadingSession))
+
+	mux.HandleFunc("GET /api/users/{id}/books", middleware.OptionalAuth(userBookHandler.GetUserBooks))
 
 	// ════════════════════════════════════════════════════════════════════════
 	// РЕКОМЕНДАЦІЇ (OpenAI)
@@ -241,8 +244,6 @@ func NewRouter(db *pgxpool.Pool) http.Handler {
 	mux.HandleFunc("POST /api/auth/forgot-password", authHandler.ForgotPassword)
 	mux.HandleFunc("POST /api/auth/verify-code", authHandler.VerifyResetCode)
 	mux.HandleFunc("POST /api/auth/reset-password", authHandler.ResetPassword)
-
-	mux.HandleFunc("POST /api/admin/upload", middleware.Auth(middleware.AdminOnly(adminHandler.UploadImage)))
 
 	return middleware.CORS(mux)
 
