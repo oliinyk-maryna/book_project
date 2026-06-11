@@ -59,16 +59,11 @@ function MonthsChart({ books, currentYear }) {
 
 function GenreStats({ books }) {
   const genreCount = {};
-  let totalRead = 0;
-
   books.forEach(b => {
     if (b.status === 'read') {
-      // Використовуємо b.genres (або b.categories) як масив
-      const bookGenres = b.genres || [b.category || 'Інше'];
-      
-      bookGenres.forEach(g => {
+      const genres = b.genres || ['Інше'];
+      genres.forEach(g => {
         genreCount[g] = (genreCount[g] || 0) + 1;
-        totalRead += 1;
       });
     }
   });
@@ -77,27 +72,32 @@ function GenreStats({ books }) {
     .sort((a, b) => b[1] - a[1])
     .slice(0, 5);
 
+  // Знаходимо суму всіх значень, щоб отримати "вагу"
+  const totalWeight = sortedGenres.reduce((sum, [_, count]) => sum + count, 0);
+
+  const sortedGenres = Object.entries(genreCount)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 5);
+
+ 
   return (
     <div className="space-y-4 pt-2">
       {sortedGenres.map(([genre, count], i) => {
-        // Рахуємо відсоток від загальної суми всіх жанрових тегів
-        const pct = totalAppearances > 0 ? Math.round((count / totalAppearances) * 100) : 0;
+        // Рахуємо відсоток від суми тільки цих 5 жанрів
+        const pct = totalWeight > 0 ? Math.round((count / totalWeight) * 100) : 0;
         return (
           <div key={i}>
             <div className="flex justify-between text-xs font-bold mb-1.5" style={{ color: 'var(--c-text-2)' }}>
               <span className="uppercase tracking-wider">{genre}</span>
-              <span>{pct}%</span> {/* Виводимо лише відсотки, як ви хотіли */}
+              <span>{pct}%</span> 
             </div>
-            <div className="w-full h-2.5 rounded-full overflow-hidden" style={{ background: 'var(--c-bg)' }}>
-              <div className="h-full rounded-full transition-all duration-1000" style={{ width: `${pct}%`, background: 'var(--c-primary)' }} />
-            </div>
+            {/* ... решта коду ... */}
           </div>
         );
       })}
     </div>
   );
 }
-
 /* ── ГОЛОВНИЙ КОМПОНЕНТ ─────────────────────────────────────────── */
 export default function AnalyticsPage({ isLoggedIn }) {
   const [stats, setStats] = useState(null);
