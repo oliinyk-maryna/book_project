@@ -26,7 +26,7 @@ function MonthsChart({ books, currentYear }) {
   
   books.forEach(b => {
     // Перевіряємо обидва варіанти назви поля, які може повернути бекенд
-    const dateStr = b.end_date;
+    const dateStr = b.end_date || b.finished_at;
     if (b.status === 'read' && dateStr) {
       const dateObj = new Date(dateStr);
       // Додаємо в графік тільки якщо рік збігається з поточним
@@ -154,7 +154,7 @@ export default function AnalyticsPage({ isLoggedIn }) {
   
   // Рахуємо книги конкретно за поточний рік
   const booksYear = myBooks.filter(b => {
-    const dateStr = b.end_date;
+    const dateStr = b.end_date || b.finished_at;
     return b.status === 'read' && dateStr && new Date(dateStr).getFullYear() === year;
   }).length;
 
