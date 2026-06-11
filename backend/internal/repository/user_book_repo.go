@@ -45,35 +45,31 @@ func (r *UserBookRepository) AddWorkToShelf(ctx context.Context, userID, workID,
 }
 
 func (r *UserBookRepository) UpdateProgress(ctx context.Context, userID, workID uuid.UUID, status string, currentPage int, notes string, startDate, endDate *time.Time) error {
-	// 1. Отримуємо загальну кількість сторінок та поточні дати з бази
+	// 1. Отримуємо дані з БД (ДОДАЛИ status::text, щоб знати попередній стан)
 	var totalPages int
 	var dbStartedAt, dbFinishedAt *time.Time
+	var dbStatus string // Знаємо, яким статус був ДО зміни
 
 	err := r.db.QueryRow(ctx, `
-		SELECT COALESCE(total_pages, 0), started_at, finished_at
+		SELECT COALESCE(total_pages, 0), started_at, finished_at, COALESCE(status::text, 'planned')
 		FROM user_editions
 		WHERE user_id = $1 AND work_id = $2`,
 		userID, workID,
-	).Scan(&totalPages, &dbStartedAt, &dbFinishedAt)
+	).Scan(&totalPages, &dbStartedAt, &dbFinishedAt, &dbStatus)
 
 	if err != nil {
-		// Рядка ще немає — отримуємо total_pages з editions
+		// Якщо книги ще немає на полиці, дістаємо кількість сторінок з editions
 		r.db.QueryRow(ctx, `SELECT COALESCE(page_count, 1) FROM editions WHERE work_id = $1::uuid LIMIT 1`, workID).Scan(&totalPages)
 		if totalPages == 0 {
 			totalPages = 1
 		}
+		dbStatus = "planned"
 	}
 
-	// 2. Правила статусу
-	if status == "read" && totalPages > 0 {
-		currentPage = totalPages
-	}
-	if totalPages > 0 && currentPage >= totalPages {
-		status = "read"
-		currentPage = totalPages
-	}
+	// Запам'ятовуємо, чи користувач прямо зараз у календарику вибрав дату
+	frontendSentEndDate := endDate != nil
 
-	// 3. Захист від затирання дат — якщо фронт не передав дату, беремо з БД
+	// Відновлюємо дати з бази, якщо фронт їх не передав
 	if startDate == nil {
 		startDate = dbStartedAt
 	}
@@ -81,17 +77,61 @@ func (r *UserBookRepository) UpdateProgress(ctx context.Context, userID, workID 
 		endDate = dbFinishedAt
 	}
 
-	// 4. UPSERT — вставляємо або оновлюємо (обидва шляхи зберігають дати)
+	// ====================================================================
+	// 2. РОЗУМНА ЛОГІКА СТАТУСІВ ТА СТОРІНОК
+	// ====================================================================
+
+	// ПРАВИЛО 1: Якщо користувач вручну вибрав дату завершення -> Прочитано
+	if frontendSentEndDate && status != "read" {
+		status = "read"
+	}
+
+	// ПРАВИЛО 2: Якщо користувач сам докрутив повзунок до кінця -> Прочитано
+	if status != "read" && dbStatus != "read" && totalPages > 0 && currentPage >= totalPages {
+		status = "read"
+	}
+
+	// ПРАВИЛО 3: ВИХІД ІЗ ПАСТКИ! (Зміна З "Прочитано" НА "Читаю")
+	if status != "read" && dbStatus == "read" {
+		endDate = nil // Знімаємо дату завершення
+		// Відкидаємо 1 сторінку назад (було 336/336 -> стає 335/336),
+		// щоб бекенд більше не вважав книгу автоматично прочитаною.
+		if totalPages > 0 && currentPage >= totalPages {
+			currentPage = totalPages - 1
+		}
+	}
+
+	// ПРАВИЛО 4: Фінальна нормалізація для "Прочитано"
+	if status == "read" {
+		if totalPages > 0 {
+			currentPage = totalPages
+		}
+		if endDate == nil {
+			now := time.Now()
+			endDate = &now
+		}
+	}
+
+	// ПРАВИЛО 5: Нормалізація для "В планах"
+	if status == "planned" {
+		currentPage = 0
+		startDate = nil
+		endDate = nil
+	}
+
+	// ====================================================================
+	// 3. Збереження у базу даних
+	// ====================================================================
 	_, err = r.db.Exec(ctx, `
 		INSERT INTO user_editions (user_id, work_id, status, current_page, notes, started_at, finished_at, total_pages, updated_at)
 		VALUES ($6, $7, $1::reading_status, $2, $3, $4, $5, $8, CURRENT_TIMESTAMP)
 		ON CONFLICT (user_id, work_id) DO UPDATE SET
-			status      = EXCLUDED.status::reading_status,
+			status       = EXCLUDED.status::reading_status,
 			current_page = EXCLUDED.current_page,
-			notes       = EXCLUDED.notes,
-			started_at  = EXCLUDED.started_at,
-			finished_at = EXCLUDED.finished_at,
-			updated_at  = CURRENT_TIMESTAMP`,
+			notes        = EXCLUDED.notes,
+			started_at   = EXCLUDED.started_at,
+			finished_at  = EXCLUDED.finished_at,
+			updated_at   = CURRENT_TIMESTAMP`,
 		status, currentPage, notes, startDate, endDate, userID, workID, totalPages,
 	)
 	return err
@@ -134,7 +174,7 @@ func (r *UserBookRepository) GetUserBooks(ctx context.Context, userID string) ([
 	books := []models.Book{}
 	for rows.Next() {
 		var b models.Book
-		var personalRating string 
+		var personalRating string
 		var startedAt, finishedAt *time.Time // Змінні для дат
 
 		err := rows.Scan(
@@ -148,11 +188,11 @@ func (r *UserBookRepository) GetUserBooks(ctx context.Context, userID string) ([
 		if b.Author != "" && b.Author != "Невідомий автор" {
 			b.Authors = []string{b.Author}
 		}
-		
+
 		// Призначаємо дати в структуру книги
 		b.StartedAt = startedAt
 		b.FinishedAt = finishedAt
-		
+
 		books = append(books, b)
 	}
 
