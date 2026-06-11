@@ -114,7 +114,9 @@ func (r *UserBookRepository) GetUserBooks(ctx context.Context, userID string) ([
 			COALESCE(ue.total_pages, e.page_count, 0) AS page_count,
 			COALESCE(ue.current_page, 0) AS current_page,
 			COALESCE(ue.personal_rating::text, '') AS personal_rating,
-			COALESCE(w.description, '') AS description
+			COALESCE(w.description, ''),
+			ue.started_at,    -- ДОДАНО: витягуємо дату початку
+			ue.finished_at    -- ДОДАНО: витягуємо дату завершення
 		FROM user_editions ue
 		JOIN works w ON ue.work_id = w.id
 		LEFT JOIN authors a ON w.author_id = a.id
@@ -132,11 +134,13 @@ func (r *UserBookRepository) GetUserBooks(ctx context.Context, userID string) ([
 	books := []models.Book{}
 	for rows.Next() {
 		var b models.Book
-		var personalRating string // Використовуємо локальну змінну, оскільки цього поля немає в структурі Book
+		var personalRating string 
+		var startedAt, finishedAt *time.Time // Змінні для дат
 
 		err := rows.Scan(
 			&b.ID, &b.Title, &b.Author, &b.CoverURL,
 			&b.Status, &b.PageCount, &b.CurrentPage, &personalRating, &b.Description,
+			&startedAt, &finishedAt, // Скануємо дати
 		)
 		if err != nil {
 			continue
@@ -144,6 +148,11 @@ func (r *UserBookRepository) GetUserBooks(ctx context.Context, userID string) ([
 		if b.Author != "" && b.Author != "Невідомий автор" {
 			b.Authors = []string{b.Author}
 		}
+		
+		// Призначаємо дати в структуру книги
+		b.StartedAt = startedAt
+		b.FinishedAt = finishedAt
+		
 		books = append(books, b)
 	}
 

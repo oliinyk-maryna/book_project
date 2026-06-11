@@ -52,12 +52,13 @@ func (s *UserBookService) UpdateProgress(ctx context.Context, userIDStr, workIDS
 		return errors.New("невалідний ID книги")
 	}
 
-	// 2. Конвертуємо дати (рядки "YYYY-MM-DD" у вказівники *time.Time)
+	// 2. Конвертуємо дати (Підтримуємо і короткий формат YYYY-MM-DD, і повний ISO/RFC3339)
 	var startDate *time.Time
 	if startDateStr != "" {
-		// Якщо дата приходить у форматі ISO, наприклад "2023-10-05T00:00:00Z",
-		// спробуйте time.RFC3339. Але фронтенд (input type="date") зазвичай шле "2006-01-02"
-		t, err := time.Parse("2006-01-02", startDateStr)
+		t, err := time.Parse(time.RFC3339, startDateStr) // Спершу пробуємо повний формат
+		if err != nil {
+			t, err = time.Parse("2006-01-02", startDateStr) // Потім короткий
+		}
 		if err == nil {
 			startDate = &t
 		}
@@ -65,7 +66,10 @@ func (s *UserBookService) UpdateProgress(ctx context.Context, userIDStr, workIDS
 
 	var endDate *time.Time
 	if endDateStr != "" {
-		t, err := time.Parse("2006-01-02", endDateStr)
+		t, err := time.Parse(time.RFC3339, endDateStr)
+		if err != nil {
+			t, err = time.Parse("2006-01-02", endDateStr)
+		}
 		if err == nil {
 			endDate = &t
 		}

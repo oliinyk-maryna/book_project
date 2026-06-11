@@ -20,6 +20,9 @@ type Book struct {
 	Publisher       string   `json:"publisher,omitempty"`
 	PublicationDate string   `json:"publication_date,omitempty"`
 	CurrentPage     int      `json:"current_page,omitempty"`
+
+	StartedAt  *time.Time `json:"started_at,omitempty"`
+	FinishedAt *time.Time `json:"finished_at,omitempty"`
 }
 
 type UnifiedSearchResult struct {
@@ -181,4 +184,5 @@ type ReadingSession struct {
 	PagesRead       int       `json:"pages_read"`
 	DurationSeconds int       `json:"duration_seconds"`
 	CreatedAt       time.Time `json:"created_at"`
+	CurrentPage     int       `json:"current_page" db:"current_page"`
 }
