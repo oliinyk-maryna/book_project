@@ -315,6 +315,9 @@ end_date:     bd.finished_at ? String(bd.finished_at).substring(0, 10) : '',
 
   useEffect(() => { loadData(); }, [loadData]);
 
+  const getTodayDate = () => {
+  return new Date().toISOString().split('T')[0];
+};
   /* ── ЛОГІКА: ПОЛИЦЯ ──────────────────────────────────────────── */
   const handleRemoveFromShelf = async () => {
     setShowDeleteModal(false); 
@@ -855,14 +858,14 @@ end_date:     bd.finished_at ? String(bd.finished_at).substring(0, 10) : '',
                         <label className="text-[10px] font-bold uppercase tracking-wider block mb-2" style={{ color: 'var(--c-text-3)' }}>Початок читання</label>
                         <div className="relative">
                           <Calendar className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2" style={{ color: 'var(--c-text-3)' }} />
-                          <input type="date" value={shelf.start_date} onChange={e => setShelf(s => ({ ...s, start_date: e.target.value }))} className="w-full border rounded-xl pl-10 pr-4 py-2.5 text-sm font-medium outline-none focus:border-[var(--c-primary)] transition-colors" style={{ background: 'var(--c-bg)', borderColor: 'var(--c-border)', color: 'var(--c-text)' }} />
+                          <input type="date" max={getTodayDate()} value={shelf.start_date} onChange={e => setShelf(s => ({ ...s, start_date: e.target.value }))} className="w-full border rounded-xl pl-10 pr-4 py-2.5 text-sm font-medium outline-none focus:border-[var(--c-primary)] transition-colors" style={{ background: 'var(--c-bg)', borderColor: 'var(--c-border)', color: 'var(--c-text)' }} />
                         </div>
                       </div>
                       <div>
                         <label className="text-[10px] font-bold uppercase tracking-wider block mb-2" style={{ color: 'var(--c-text-3)' }}>Дата завершення <span className="ml-1 font-normal opacity-60 normal-case">(авто → Прочитано)</span></label>
                         <div className="relative">
                           <Calendar className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2" style={{ color: 'var(--c-text-3)' }} />
-                          <input type="date" value={shelf.end_date} onChange={e => setShelf(s => ({ ...s, end_date: e.target.value }))} className="w-full border rounded-xl pl-10 pr-4 py-2.5 text-sm font-medium outline-none focus:border-[var(--c-primary)] transition-colors" style={{ background: 'var(--c-bg)', borderColor: 'var(--c-border)', color: 'var(--c-text)' }} />
+                          <input type="date" max={getTodayDate()} value={shelf.end_date} onChange={e => setShelf(s => ({ ...s, end_date: e.target.value }))} className="w-full border rounded-xl pl-10 pr-4 py-2.5 text-sm font-medium outline-none focus:border-[var(--c-primary)] transition-colors" style={{ background: 'var(--c-bg)', borderColor: 'var(--c-border)', color: 'var(--c-text)' }} />
                         </div>
                       </div>
                     </div>
