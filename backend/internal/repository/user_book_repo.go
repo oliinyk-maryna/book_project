@@ -144,70 +144,60 @@ func (r *UserBookRepository) RemoveFromShelf(ctx context.Context, userID, workID
 	return err
 }
 
-// GetUserBooks — повертає всі книги з полиці
 func (r *UserBookRepository) GetUserBooks(ctx context.Context, userID string) ([]models.Book, error) {
 	query := `
-		SELECT
-        w.id::text, w.title,
-        COALESCE(a.name, 'Невідомий автор') AS author,
-        COALESCE(e.cover_url, '') AS cover_url,
-        COALESCE(ue.status::text, 'planned') AS status,
-        COALESCE(ue.total_pages, e.page_count, 0) AS page_count,
-        COALESCE(ue.current_page, 0) AS current_page,
-        COALESCE(w.category, 'Інше') AS category,  -- ВАЖЛИВО: переконайтеся, що тут правильне ім'я колонки
-        COALESCE(w.description, '') AS description,
-        ue.started_at,
-        ue.finished_at
-    FROM user_editions ue
-	JOIN works w ON ue.work_id = w.id
-	LEFT JOIN authors a ON w.author_id = a.id
-	LEFT JOIN editions e ON w.id = e.work_id
-	WHERE ue.user_id = $1::uuid
-	ORDER BY ue.updated_at DESC
-	`
+        SELECT
+            w.id::text, 
+            w.title,
+            COALESCE(a.name, 'Невідомий автор') AS author,
+            COALESCE(e.cover_url, '') AS cover_url,
+            COALESCE(ue.status::text, 'planned') AS status,
+            COALESCE(ue.total_pages, e.page_count, 0) AS page_count,
+            COALESCE(ue.current_page, 0) AS current_page,
+            COALESCE(ue.personal_rating::text, '0') AS personal_rating, -- ДОДАНО у SELECT
+            COALESCE(w.category, 'Інше') AS category,
+            COALESCE(w.description, '') AS description,
+            ue.started_at,
+            ue.finished_at
+        FROM user_editions ue
+        JOIN works w ON ue.work_id = w.id
+        LEFT JOIN authors a ON w.author_id = a.id
+        LEFT JOIN editions e ON w.id = e.work_id
+        WHERE ue.user_id = $1::uuid
+        ORDER BY ue.updated_at DESC
+    `
 
 	rows, err := r.db.Query(ctx, query, userID)
 	if err != nil {
-		return []models.Book{}, err
+		return nil, err // Повертаємо nil, err, щоб відразу бачити помилку запиту
 	}
 	defer rows.Close()
 
 	books := []models.Book{}
 	for rows.Next() {
 		var b models.Book
-		var personalRating string
-		var category string // 1. Оголошуємо змінну
+		var personalRating string // Цю змінну можна ігнорувати, якщо вона не потрібна в структурі Book
+		var category string
 		var startedAt, finishedAt *time.Time
 
-		// 2. Scan має чітко відповідати SELECT запиту
+		// Тепер порядок Scan ідеально збігається з SELECT
 		err := rows.Scan(
-			&b.ID,
-			&b.Title,
-			&b.Author,
-			&b.CoverURL,
-			&b.Status,
-			&b.PageCount,
-			&b.CurrentPage,
-			&personalRating, // Це те, чого не було в SELECT, але є в моделі?
-			// Увага: якщо в SELECT немає personal_rating, приберіть цей рядок зі Scan!
-			&category, // Категорія
-			&b.Description,
-			&startedAt,
-			&finishedAt,
+			&b.ID, &b.Title, &b.Author, &b.CoverURL,
+			&b.Status, &b.PageCount, &b.CurrentPage,
+			&personalRating, &category, &b.Description,
+			&startedAt, &finishedAt,
 		)
 
 		if err != nil {
-			// Краще логувати помилку, щоб знати, чому не працює
-			fmt.Println("Помилка сканування рядка:", err)
+			// ВАЖЛИВО: Виведіть цю помилку в консоль, щоб зрозуміти, що не так!
+			fmt.Println("Помилка сканування:", err)
 			continue
 		}
 
-		b.Category = category // Призначаємо значення
-
+		b.Category = category
 		if b.Author != "" && b.Author != "Невідомий автор" {
 			b.Authors = []string{b.Author}
 		}
-
 		b.StartedAt = startedAt
 		b.FinishedAt = finishedAt
 
