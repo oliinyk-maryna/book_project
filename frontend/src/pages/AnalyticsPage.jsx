@@ -75,11 +75,10 @@ function GenreStats({ books }) {
   // Знаходимо суму всіх значень, щоб отримати "вагу"
   const totalWeight = sortedGenres.reduce((sum, [_, count]) => sum + count, 0);
 
- 
   return (
     <div className="space-y-4 pt-2">
       {sortedGenres.map(([genre, count], i) => {
-        // Рахуємо відсоток від суми тільки цих 5 жанрів
+        // Рахуємо відсоток від загальної суми всіх жанрових тегів
         const pct = totalWeight > 0 ? Math.round((count / totalWeight) * 100) : 0;
         return (
           <div key={i}>
@@ -87,13 +86,16 @@ function GenreStats({ books }) {
               <span className="uppercase tracking-wider">{genre}</span>
               <span>{pct}%</span> 
             </div>
-            {/* ... решта коду ... */}
+            <div className="w-full h-2.5 rounded-full overflow-hidden" style={{ background: 'var(--c-bg)' }}>
+              <div className="h-full rounded-full transition-all duration-1000" style={{ width: `${pct}%`, background: 'var(--c-primary)' }} />
+            </div>
           </div>
         );
       })}
     </div>
   );
 }
+
 /* ── ГОЛОВНИЙ КОМПОНЕНТ ─────────────────────────────────────────── */
 export default function AnalyticsPage({ isLoggedIn }) {
   const [stats, setStats] = useState(null);
