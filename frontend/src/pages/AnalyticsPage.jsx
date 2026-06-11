@@ -119,9 +119,14 @@ export default function AnalyticsPage({ isLoggedIn }) {
       
       if (bRes.ok) {
         const bData = await bRes.json();
-        // БЕЗПЕЧНЕ ПРИСВОЄННЯ: перевіряємо чи це масив, чи об'єкт з масивом books
         setMyBooks(Array.isArray(bData) ? bData : (bData.data || bData.books || []));
       }
+      if (bRes.ok) {
+    const bData = await bRes.json();
+    const books = Array.isArray(bData) ? bData : (bData.data || bData.books || []);
+    console.log("ПЕРША КНИГА З ПОЛИЦІ:", books[0]);
+    setMyBooks(books);
+}
     } catch (err) {
       console.error("Помилка завантаження даних", err);
     } finally { 

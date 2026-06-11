@@ -2,6 +2,7 @@ package repository
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"book_project/backend/internal/models"
@@ -147,22 +148,22 @@ func (r *UserBookRepository) RemoveFromShelf(ctx context.Context, userID, workID
 func (r *UserBookRepository) GetUserBooks(ctx context.Context, userID string) ([]models.Book, error) {
 	query := `
 		SELECT
-			w.id::text, w.title,
-			COALESCE(a.name, 'Невідомий автор') AS author,
-			COALESCE(e.cover_url, '') AS cover_url,
-			COALESCE(ue.status::text, 'planned') AS status,
-			COALESCE(ue.total_pages, e.page_count, 0) AS page_count,
-			COALESCE(ue.current_page, 0) AS current_page,
-			COALESCE(ue.personal_rating::text, '') AS personal_rating,
-			COALESCE(w.description, ''),
-			ue.started_at,    -- ДОДАНО: витягуємо дату початку
-			ue.finished_at    -- ДОДАНО: витягуємо дату завершення
-		FROM user_editions ue
-		JOIN works w ON ue.work_id = w.id
-		LEFT JOIN authors a ON w.author_id = a.id
-		LEFT JOIN editions e ON w.id = e.work_id
-		WHERE ue.user_id = $1::uuid
-		ORDER BY ue.updated_at DESC
+        w.id::text, w.title,
+        COALESCE(a.name, 'Невідомий автор') AS author,
+        COALESCE(e.cover_url, '') AS cover_url,
+        COALESCE(ue.status::text, 'planned') AS status,
+        COALESCE(ue.total_pages, e.page_count, 0) AS page_count,
+        COALESCE(ue.current_page, 0) AS current_page,
+        COALESCE(w.category, 'Інше') AS category,  -- ВАЖЛИВО: переконайтеся, що тут правильне ім'я колонки
+        COALESCE(w.description, '') AS description,
+        ue.started_at,
+        ue.finished_at
+    FROM user_editions ue
+	JOIN works w ON ue.work_id = w.id
+	LEFT JOIN authors a ON w.author_id = a.id
+	LEFT JOIN editions e ON w.id = e.work_id
+	WHERE ue.user_id = $1::uuid
+	ORDER BY ue.updated_at DESC
 	`
 
 	rows, err := r.db.Query(ctx, query, userID)
@@ -175,21 +176,38 @@ func (r *UserBookRepository) GetUserBooks(ctx context.Context, userID string) ([
 	for rows.Next() {
 		var b models.Book
 		var personalRating string
-		var startedAt, finishedAt *time.Time // Змінні для дат
+		var category string // 1. Оголошуємо змінну
+		var startedAt, finishedAt *time.Time
 
+		// 2. Scan має чітко відповідати SELECT запиту
 		err := rows.Scan(
-			&b.ID, &b.Title, &b.Author, &b.CoverURL,
-			&b.Status, &b.PageCount, &b.CurrentPage, &personalRating, &b.Description,
-			&startedAt, &finishedAt, // Скануємо дати
+			&b.ID,
+			&b.Title,
+			&b.Author,
+			&b.CoverURL,
+			&b.Status,
+			&b.PageCount,
+			&b.CurrentPage,
+			&personalRating, // Це те, чого не було в SELECT, але є в моделі?
+			// Увага: якщо в SELECT немає personal_rating, приберіть цей рядок зі Scan!
+			&category, // Категорія
+			&b.Description,
+			&startedAt,
+			&finishedAt,
 		)
+
 		if err != nil {
+			// Краще логувати помилку, щоб знати, чому не працює
+			fmt.Println("Помилка сканування рядка:", err)
 			continue
 		}
+
+		b.Category = category // Призначаємо значення
+
 		if b.Author != "" && b.Author != "Невідомий автор" {
 			b.Authors = []string{b.Author}
 		}
 
-		// Призначаємо дати в структуру книги
 		b.StartedAt = startedAt
 		b.FinishedAt = finishedAt
 
