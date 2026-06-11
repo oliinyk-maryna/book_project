@@ -119,14 +119,11 @@ export default function AnalyticsPage({ isLoggedIn }) {
       
       if (bRes.ok) {
         const bData = await bRes.json();
-        setMyBooks(Array.isArray(bData) ? bData : (bData.data || bData.books || []));
+        // Використовуємо єдине джерело даних
+        const books = Array.isArray(bData) ? bData : (bData.data || bData.books || []);
+        console.log("Дані завантажено:", books);
+        setMyBooks(books);
       }
-      if (bRes.ok) {
-    const bData = await bRes.json();
-    const books = Array.isArray(bData) ? bData : (bData.data || bData.books || []);
-    console.log("ПЕРША КНИГА З ПОЛИЦІ:", books[0]);
-    setMyBooks(books);
-}
     } catch (err) {
       console.error("Помилка завантаження даних", err);
     } finally { 
