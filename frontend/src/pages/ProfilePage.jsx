@@ -292,7 +292,8 @@ export default function ProfilePage({ handleNavigate, handleLogout, currentUser,
     </div>
   );
 
-  const booksRead   = stats?.books_read || 0;
+  const booksRead = stats?.books_read || 0;
+  console.log("Stats object from backend:", stats);
   const targetBooks = goal?.target_books || 0;
   const goalPct     = targetBooks > 0 ? Math.min(100, Math.round((booksRead / targetBooks) * 100)) : 0;
   const followers   = profile?.followers_count ?? stats?.followers_count ?? 0;

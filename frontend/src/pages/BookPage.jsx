@@ -281,8 +281,9 @@ export default function BookPage({ isLoggedIn, currentUser, handleNavigate, open
           setShelf({
             status:       bd.user_status,
             current_page: bd.current_page || 0,
-            start_date:   bd.started_at ? bd.started_at.split('T')[0] : '',
-            end_date:     bd.finished_at ? bd.finished_at.split('T')[0] : '',
+
+start_date:   bd.started_at ? String(bd.started_at).substring(0, 10) : '',
+end_date:     bd.finished_at ? String(bd.finished_at).substring(0, 10) : '',
             notes:        bd.notes || '',
           });
         } else {
