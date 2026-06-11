@@ -75,10 +75,6 @@ function GenreStats({ books }) {
   // Знаходимо суму всіх значень, щоб отримати "вагу"
   const totalWeight = sortedGenres.reduce((sum, [_, count]) => sum + count, 0);
 
-  const sortedGenres = Object.entries(genreCount)
-    .sort((a, b) => b[1] - a[1])
-    .slice(0, 5);
-
  
   return (
     <div className="space-y-4 pt-2">
