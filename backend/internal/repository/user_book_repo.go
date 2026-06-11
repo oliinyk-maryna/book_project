@@ -201,9 +201,9 @@ func (r *UserBookRepository) GetUserBooks(ctx context.Context, userID string) ([
 			for i := range parts {
 				parts[i] = strings.TrimSpace(parts[i])
 			}
-			b.Category = parts[0] // Старий код працює
-			b.Categories = parts  // Аналітика працює
-			b.Genres = parts      // Ваша нова структура працює
+			b.Category = parts[0]
+			b.Categories = parts
+			b.Genres = parts
 		} else {
 			b.Category = "Інше"
 			b.Categories = []string{"Інше"}

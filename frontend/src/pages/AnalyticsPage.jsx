@@ -59,16 +59,16 @@ function MonthsChart({ books, currentYear }) {
 
 function GenreStats({ books }) {
   const genreCount = {};
-  let totalAppearances = 0; // Загальна кількість "входжень" жанрів
+  let totalRead = 0;
 
   books.forEach(b => {
     if (b.status === 'read') {
-      // Використовуємо масив categories, який прийшов з бекенда
-      const genres = b.categories || [b.category || 'Інше'];
+      // Використовуємо b.genres (або b.categories) як масив
+      const bookGenres = b.genres || [b.category || 'Інше'];
       
-      genres.forEach(g => {
+      bookGenres.forEach(g => {
         genreCount[g] = (genreCount[g] || 0) + 1;
-        totalAppearances += 1;
+        totalRead += 1;
       });
     }
   });
