@@ -57,27 +57,36 @@ function MonthsChart({ books, currentYear }) {
   );
 }
 
-/* ── ГРАФІК ЖАНРІВ ─────────────────────────────────────────────── */
 function GenreStats({ books }) {
   const genreCount = {};
-  books.forEach(b => { 
-    if (b.status === 'read') { 
-      const g = b.category || 'Інше'; 
-      genreCount[g] = (genreCount[g] || 0) + 1; 
+  let totalAppearances = 0; // Загальна кількість "входжень" жанрів
+
+  books.forEach(b => {
+    if (b.status === 'read') {
+      // Використовуємо масив categories, який прийшов з бекенда
+      const genres = b.categories || [b.category || 'Інше'];
+      
+      genres.forEach(g => {
+        genreCount[g] = (genreCount[g] || 0) + 1;
+        totalAppearances += 1;
+      });
     }
   });
-  const sortedGenres = Object.entries(genreCount).sort((a, b) => b[1] - a[1]).slice(0, 5);
-  const totalRead = books.filter(b => b.status === 'read').length;
+
+  const sortedGenres = Object.entries(genreCount)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 5);
 
   return (
     <div className="space-y-4 pt-2">
       {sortedGenres.map(([genre, count], i) => {
-        const pct = totalRead > 0 ? Math.round((count / totalRead) * 100) : 0;
+        // Рахуємо відсоток від загальної суми всіх жанрових тегів
+        const pct = totalAppearances > 0 ? Math.round((count / totalAppearances) * 100) : 0;
         return (
           <div key={i}>
             <div className="flex justify-between text-xs font-bold mb-1.5" style={{ color: 'var(--c-text-2)' }}>
               <span className="uppercase tracking-wider">{genre}</span>
-              <span>{count} ({pct}%)</span>
+              <span>{pct}%</span> {/* Виводимо лише відсотки, як ви хотіли */}
             </div>
             <div className="w-full h-2.5 rounded-full overflow-hidden" style={{ background: 'var(--c-bg)' }}>
               <div className="h-full rounded-full transition-all duration-1000" style={{ width: `${pct}%`, background: 'var(--c-primary)' }} />
@@ -166,7 +175,7 @@ export default function AnalyticsPage({ isLoggedIn }) {
   return (
     <main className="max-w-5xl mx-auto px-4 mt-6 md:mt-8 pb-28 page-enter">
       <div className="mb-8 border-b pb-6" style={{ borderColor: 'var(--c-border)' }}>
-        <h1 className="text-4xl font-serif font-black" style={{ color: 'var(--c-text)' }}>Аналітика</h1>
+        <h1 className="text-4xl font-serif font-black" style={{ color: 'var(--c-text)' }}>Статистика</h1>
       </div>
 
       {/* Єдина ціль */}

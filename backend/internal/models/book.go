@@ -14,6 +14,7 @@ type Book struct {
 	CoverURL        string   `json:"cover_url"`
 	Source          string   `json:"source,omitempty"`
 	Category        string   `json:"category,omitempty"`
+	Categories      []string `json:"categories"`
 	Genres          []string `json:"genres"`
 	Status          string   `json:"status,omitempty"`
 	PageCount       int      `json:"page_count,omitempty"`
