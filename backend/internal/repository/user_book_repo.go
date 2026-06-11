@@ -145,59 +145,74 @@ func (r *UserBookRepository) RemoveFromShelf(ctx context.Context, userID, workID
 }
 
 func (r *UserBookRepository) GetUserBooks(ctx context.Context, userID string) ([]models.Book, error) {
+	// Використовуємо підзапити, щоб уникнути розмноження рядків через JOIN-и
 	query := `
-        SELECT
-            w.id::text, 
-            w.title,
-            COALESCE(a.name, 'Невідомий автор') AS author,
-            COALESCE(e.cover_url, '') AS cover_url,
-            COALESCE(ue.status::text, 'planned') AS status,
-            COALESCE(ue.total_pages, e.page_count, 0) AS page_count,
-            COALESCE(ue.current_page, 0) AS current_page,
-            COALESCE(ue.personal_rating::text, '0') AS personal_rating, -- ДОДАНО у SELECT
-            COALESCE(w.category, 'Інше') AS category,
-            COALESCE(w.description, '') AS description,
-            ue.started_at,
-            ue.finished_at
-        FROM user_editions ue
-        JOIN works w ON ue.work_id = w.id
-        LEFT JOIN authors a ON w.author_id = a.id
-        LEFT JOIN editions e ON w.id = e.work_id
-        WHERE ue.user_id = $1::uuid
-        ORDER BY ue.updated_at DESC
-    `
+		SELECT
+			w.id::text, 
+			w.title,
+			COALESCE(a.name, 'Невідомий автор') AS author,
+			
+			-- Беремо першу доступну обкладинку з editions
+			COALESCE((SELECT cover_url FROM editions WHERE work_id = w.id AND cover_url IS NOT NULL LIMIT 1), '') AS cover_url,
+			
+			COALESCE(ue.status::text, 'planned') AS status,
+			
+			-- Беремо кількість сторінок з user_editions, якщо ні - з editions
+			COALESCE(ue.total_pages, (SELECT page_count FROM editions WHERE work_id = w.id LIMIT 1), 0) AS page_count,
+			COALESCE(ue.current_page, 0) AS current_page,
+			COALESCE(ue.personal_rating::text, '0') AS personal_rating,
+			
+			-- Збираємо всі жанри в один рядок через кому
+			COALESCE((
+				SELECT string_agg(g.name, ', ') 
+				FROM work_genres wg 
+				JOIN genres g ON wg.genre_id = g.id 
+				WHERE wg.work_id = w.id
+			), 'Інше') AS category,
+			
+			COALESCE(w.description, '') AS description,
+			ue.started_at,
+			ue.finished_at
+		FROM user_editions ue
+		JOIN works w ON ue.work_id = w.id
+		LEFT JOIN authors a ON w.author_id = a.id
+		WHERE ue.user_id = $1::uuid
+		ORDER BY ue.updated_at DESC
+	`
 
 	rows, err := r.db.Query(ctx, query, userID)
 	if err != nil {
-		return nil, err // Повертаємо nil, err, щоб відразу бачити помилку запиту
+		return nil, err
 	}
 	defer rows.Close()
 
 	books := []models.Book{}
 	for rows.Next() {
 		var b models.Book
-		var personalRating string // Цю змінну можна ігнорувати, якщо вона не потрібна в структурі Book
-		var category string
+		var personalRating string
+		var genresStr string
 		var startedAt, finishedAt *time.Time
 
-		// Тепер порядок Scan ідеально збігається з SELECT
 		err := rows.Scan(
 			&b.ID, &b.Title, &b.Author, &b.CoverURL,
 			&b.Status, &b.PageCount, &b.CurrentPage,
-			&personalRating, &category, &b.Description,
+			&personalRating, &genresStr, &b.Description,
 			&startedAt, &finishedAt,
 		)
 
 		if err != nil {
-			// ВАЖЛИВО: Виведіть цю помилку в консоль, щоб зрозуміти, що не так!
-			fmt.Println("Помилка сканування:", err)
+			fmt.Println("Помилка сканування книги:", err)
 			continue
 		}
 
-		b.Category = category
+		// Фронтенд очікує поле Authors як масив, навіть якщо автор один
 		if b.Author != "" && b.Author != "Невідомий автор" {
 			b.Authors = []string{b.Author}
 		}
+
+		// Віддаємо склеєні жанри в поле Category
+		b.Category = genresStr
+
 		b.StartedAt = startedAt
 		b.FinishedAt = finishedAt
 
