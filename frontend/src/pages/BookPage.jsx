@@ -320,23 +320,26 @@ end_date:     bd.finished_at ? String(bd.finished_at).substring(0, 10) : '',
 };
   /* ── ЛОГІКА: ПОЛИЦЯ ──────────────────────────────────────────── */
   const handleRemoveFromShelf = async () => {
-    setShowDeleteModal(false); 
-    setIsAdding(true);         
-    
+    setShowDeleteModal(false);
+    // Optimistic: одразу очищуємо стан
+    const prevShelf = shelf;
+    const prevOnShelf = isOnShelf;
+    setIsOnShelf(false);
+    setShelf({ status: 'planned', current_page: 0, start_date: '', end_date: '', notes: '' });
+
     try {
       const res = await fetch(`${API_URL}/me/books/${id}`, { method: 'DELETE', headers: authH() });
       if (res.ok) {
         toast.success('Книгу видалено з полиці');
-        setIsOnShelf(false);
-        setShelf({ status: 'planned', current_page: 0, start_date: '', end_date: '', notes: '' });
-        await loadData();
       } else {
+        setIsOnShelf(prevOnShelf);
+        setShelf(prevShelf);
         toast.error('Помилка видалення');
       }
-    } catch { 
-      toast.error("Помилка з'єднання з сервером"); 
-    } finally {
-      setIsAdding(false);
+    } catch {
+      setIsOnShelf(prevOnShelf);
+      setShelf(prevShelf);
+      toast.error("Помилка з'єднання");
     }
   };
 
@@ -403,7 +406,7 @@ end_date:     bd.finished_at ? String(bd.finished_at).substring(0, 10) : '',
       if (res.ok) {
         toast.success('Збережено!');
         setIsOnShelf(true);
-        await loadData();
+        // НЕ робимо loadData() — стан вже актуальний
       } else {
         const errText = await res.text().catch(() => '');
         toast.error('Помилка збереження' + (errText ? ': ' + errText : ''));
@@ -625,11 +628,11 @@ end_date:     bd.finished_at ? String(bd.finished_at).substring(0, 10) : '',
           </div>
 
           {/* Права колонка: Текст і прогрес */}
-          <div className="flex-1 flex flex-col justify-center gap-3 text-center md:text-left">
-            <h1 className="font-serif font-black text-2xl md:text-3xl leading-tight" style={{ color: 'var(--c-text)' }}>
+          <div className="flex-1 flex flex-col justify-center gap-3 text-center md:text-left min-w-0">
+            <h1 className="font-serif font-black text-2xl md:text-3xl leading-tight break-words" style={{ color: 'var(--c-text)' }}>
               {book.title}
             </h1>
-            <p className="text-sm font-semibold uppercase tracking-wider" style={{ color: 'var(--c-text-3)' }}>
+            <p className="text-sm font-semibold uppercase tracking-wider truncate" style={{ color: 'var(--c-text-3)' }}>
               {book.authors?.join(', ') || book.author || 'Невідомий автор'}
             </p>
             

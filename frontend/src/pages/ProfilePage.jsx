@@ -310,9 +310,9 @@ export default function ProfilePage({ handleNavigate, handleLogout, currentUser,
             ? <img src={currentUser.avatar_url} className="w-full h-full object-cover" onError={e=>e.target.style.display='none'} alt="" />
             : currentUser.username?.[0]?.toUpperCase()}
         </div>
-        <div>
-          <h1 className="font-display font-bold text-2xl leading-tight">{currentUser.username}</h1>
-          {profile?.bio && <p className="text-sm mt-1 max-w-xs" style={{ color:'var(--c-text-2)' }}>{profile.bio}</p>}
+        <div className="min-w-0">
+          <h1 className="font-display font-bold text-2xl leading-tight truncate max-w-[200px]">{currentUser.username}</h1>
+          {profile?.bio && <p className="text-sm mt-1 max-w-xs break-words" style={{ color:'var(--c-text-2)' }}>{profile.bio}</p>}
         </div>
 
         {/* Stats row */}

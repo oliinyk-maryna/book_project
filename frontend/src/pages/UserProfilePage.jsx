@@ -86,7 +86,7 @@ export default function UserProfilePage({ isLoggedIn, currentUser, handleNavigat
           </div>
           
           <div>
-            <h1 className="font-serif font-black text-2xl leading-tight" style={{ color: 'var(--c-text)' }}>{profile.username}</h1>
+            <h1 className="font-serif font-black text-2xl leading-tight truncate max-w-[240px]" style={{ color: 'var(--c-text)' }}>{profile.username}</h1>
             {profile.bio ? (
                <p className="text-sm mt-2 max-w-sm mx-auto leading-relaxed font-medium" style={{ color: 'var(--c-text-2)' }}>{profile.bio}</p>
             ) : (

@@ -1,70 +1,61 @@
-@import "tailwindcss";
-
-:root {
-    --font-display: "Playfair Display", Georgia, serif;
-    --font-ui: "Plus Jakarta Sans", system-ui, sans-serif;
-
-    /* Максимально тепла, паперова палітра */
-    --c-bg: #F5F0E6; 
-    --c-surface: #FCFAf5;
-    --c-surface-2: #F0E8DB;
-    --c-border: #E8DFD1;
-    
-    --c-primary: #2C4C3B; /* Глибокий зелений (колір лісу/бібліотеки) */
-    --c-primary-h: #1E3629;
-    --c-primary-muted: #E2EBE5;
-    
-    --c-accent: #D47B4A; /* Теплий помаранчевий (колір каміна/осені) */
-    
-    --c-text: #2A241D;
-    --c-text-2: #5E5345;
-    --c-text-3: #998C7B;
+.page-enter {
+    animation: pageEnter 0.18s ease both;
 }
 
-*, *::before, *::after { box-sizing: border-box; }
-html { scroll-behavior: smooth; -webkit-tap-highlight-color: transparent; }
-body { font-family: var(--font-ui); background: var(--c-bg); color: var(--c-text); min-height: 100dvh; }
+@keyframes pageEnter {
+    from {
+        opacity: 0;
+        transform: translateY(6px);
+    }
 
-.font-serif { font-family: var(--font-display) !important; }
-
-/* ── Плавні тіні та скруглення (Ламповість) ── */
-.glass-panel {
-    background: rgba(252, 250, 245, 0.85);
-    backdrop-filter: blur(20px);
-    -webkit-backdrop-filter: blur(20px);
-    border: 1px solid rgba(232, 223, 209, 0.5);
-    box-shadow: 0 8px 32px rgba(42, 36, 29, 0.04);
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
 }
 
-.soft-shadow { box-shadow: 0 4px 20px rgba(42, 36, 29, 0.03), 0 1px 3px rgba(42, 36, 29, 0.02); }
+/* Skeleton shimmer ─────────────────────────────────────────── */
+@keyframes shimmer {
+    0% {
+        background-position: -400px 0;
+    }
 
-/* ── Telegram-like Chat Bubbles ── */
-.chat-bg { background-image: url('https://www.transparenttextures.com/patterns/cream-paper.png'); }
-
-.bubble-mine {
-    background: var(--c-primary);
-    color: white;
-    border-radius: 20px 20px 4px 20px;
-    box-shadow: 0 2px 5px rgba(44, 76, 59, 0.2);
+    100% {
+        background-position: 400px 0;
+    }
 }
 
-.bubble-theirs {
-    background: #FFFFFF;
-    color: var(--c-text);
-    border-radius: 20px 20px 20px 4px;
-    border: 1px solid var(--c-border);
-    box-shadow: 0 2px 5px rgba(42, 36, 29, 0.02);
+.skeleton-line {
+    background: linear-gradient(90deg,
+            var(--c-surface-2, #f1ede7) 25%,
+            var(--c-surface, #faf7f2) 50%,
+            var(--c-surface-2, #f1ede7) 75%);
+    background-size: 800px 100%;
+    animation: shimmer 1.4s infinite linear;
+    border-radius: 0.5rem;
 }
 
-/* ── Custom Scrollbar (MacOS style) ── */
-.custom-scrollbar::-webkit-scrollbar { width: 5px; height: 5px; }
-.custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
-.custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(153, 140, 123, 0.3); border-radius: 10px; }
-.custom-scrollbar::-webkit-scrollbar-thumb:hover { background: rgba(153, 140, 123, 0.5); }
+/* Fade між loading → content ───────────────────────────────── */
+.content-fade-in {
+    animation: contentFadeIn 0.2s ease both;
+}
 
-/* Анімації */
-.page-enter { animation: fadeUp 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
-@keyframes fadeUp {
-    from { opacity: 0; transform: translateY(12px); }
-    to { opacity: 1; transform: translateY(0); }
+@keyframes contentFadeIn {
+    from {
+        opacity: 0;
+    }
+
+    to {
+        opacity: 1;
+    }
+}
+
+/* Optimistic button feedback ────────────────────────────────── */
+.btn-press {
+    transition: transform 0.1s ease, opacity 0.1s ease;
+}
+
+.btn-press:active {
+    transform: scale(0.95);
+    opacity: 0.8;
 }
