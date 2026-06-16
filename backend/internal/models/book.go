@@ -103,6 +103,7 @@ type Review struct {
 	ReviewText string    `json:"review_text,omitempty"`
 	HasSpoiler bool      `json:"has_spoiler"`
 	CreatedAt  time.Time `json:"created_at"`
+	BookTitle  string    `json:"book_title"`
 }
 
 // BookFilters — розширені фільтри для каталогу

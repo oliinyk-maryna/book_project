@@ -15,7 +15,6 @@ const roleColors = {
   user:      'bg-slate-100 text-slate-600',
 };
 
-/* ── Skeleton ─────────────────────────────────────────────────── */
 function Skeleton({ rows = 5 }) {
   return (
     <div className="animate-pulse divide-y divide-slate-100">
@@ -41,11 +40,10 @@ function Empty({ title = 'Нічого не знайдено', icon: Icon = Inbo
   );
 }
 
-/* ── Confirm dialog ───────────────────────────────────────────── */
 function Confirm({ title, body, onOk, onCancel }) {
   return (
-    <div className="fixed inset-0 z-[300] flex items-center justify-center bg-black/40 backdrop-blur-sm">
-      <div className="bg-white rounded-2xl shadow-2xl p-6 max-w-sm w-full mx-4 border border-slate-200 animate-in zoom-in-95 duration-200">
+    <div className="fixed inset-0 z-[300] flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
+      <div className="bg-white rounded-2xl shadow-2xl p-6 max-w-sm w-full border border-slate-200 animate-in zoom-in-95 duration-200">
         <div className="flex items-center gap-3 mb-3">
           <div className="w-10 h-10 bg-red-100 rounded-xl flex items-center justify-center shrink-0">
             <AlertTriangle className="w-5 h-5 text-red-600" />
@@ -66,7 +64,6 @@ function Confirm({ title, body, onOk, onCancel }) {
   );
 }
 
-/* ── Stat card ────────────────────────────────────────────────── */
 function StatCard({ label, value, icon: Icon, color }) {
   return (
     <div className="bg-white border border-slate-200 p-5 rounded-2xl shadow-sm flex flex-col gap-3">
@@ -81,22 +78,51 @@ function StatCard({ label, value, icon: Icon, color }) {
   );
 }
 
-/* ── Book modal ───────────────────────────────────────────────── */
+function FormField({ label, value, onChange, type = 'text', placeholder, ...rest }) {
+  return (
+    <div>
+      <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">{label}</label>
+      <input
+        type={type}
+        value={value ?? ''}
+        onChange={onChange}
+        placeholder={placeholder}
+        className="w-full border border-slate-200 rounded-xl px-4 py-2.5 text-sm outline-none focus:border-indigo-400 transition-colors"
+        {...rest}
+      />
+    </div>
+  );
+}
+
 function BookModal({ book, onClose, onSaved }) {
-  // Покращена ініціалізація: тепер авторів та жанри видно повністю
+  const safeString = (val) => {
+    if (!val || val === 'Не вказано' || val === 'Невідомий автор') return '';
+    return String(val);
+  };
+  const safeDate = (val) => {
+    const d = safeString(val);
+    if (!d) return '';
+    return d.split('T')[0];
+  };
+  const safeArray = (arr, fallback) => {
+    if (Array.isArray(arr) && arr.length > 0) return arr.join(', ');
+    return safeString(fallback);
+  };
+
   const [form, setForm] = useState({
-  title:            book?.title ?? book?.Title ?? '',
-  author:           Array.isArray(book?.authors) ? book.authors.join(', ') : (book?.author ?? book?.Author ?? ''),
-  cover_url:        book?.cover_url ?? book?.CoverURL ?? '',
-  description:      book?.description ?? book?.Description ?? '',
-  page_count:       book?.page_count ?? book?.PageCount ?? '',
-  genres:           Array.isArray(book?.genres) ? book.genres.join(', ') : (book?.category ?? book?.Category ?? ''),
-  publication_date: (book?.publication_date || book?.PublicationDate || book?.PubDate)?.split('T')?.[0] ?? '',
-  publisher:        book?.publisher ?? book?.Publisher ?? '',
-});
+    title:            safeString(book?.title ?? book?.Title),
+    author:           safeArray(book?.authors || book?.Authors, book?.author ?? book?.Author),
+    cover_url:        safeString(book?.cover_url ?? book?.CoverURL),
+    description:      safeString(book?.description ?? book?.Description),
+    page_count:       book?.page_count || book?.PageCount || '',
+    genres:           safeArray(book?.genres || book?.Genres, book?.category ?? book?.Category),
+    publication_date: safeDate(book?.publication_date ?? book?.PublicationDate ?? book?.PubDate),
+    publisher:        safeString(book?.publisher ?? book?.Publisher),
+  });
+  
   const [saving,    setSaving]    = useState(false);
   const [uploading, setUploading] = useState(false);
-  const isNew = !book;
+  const isNew = !book || book === 'new';
 
   const handleUpload = async (e) => {
     const file = e.target.files?.[0];
@@ -116,18 +142,23 @@ function BookModal({ book, onClose, onSaved }) {
     if (!form.author.trim()) return toast.error('Автор обов\'язковий');
     setSaving(true);
     try {
+      let finalDate = form.publication_date || null;
+      if (finalDate === 'Не вказано' || finalDate === '') finalDate = null;
+
       const payload = {
-        title:            form.title.trim(),
-        authors:          form.author.split(',').map(s => s.trim()).filter(Boolean),
-        cover_url:        form.cover_url.trim(),
-        description:      form.description.trim(),
-        page_count:       parseInt(form.page_count) || 0,
-        genres:           form.genres.split(',').map(s => s.trim()).filter(Boolean),
-        publication_date: form.publication_date || null,
-        publisher:        form.publisher.trim(),
+        Title:            form.title.trim(),
+        Authors:          form.author.split(',').map(s => s.trim()).filter(Boolean),
+        CoverURL:         form.cover_url.trim(),
+        Description:      form.description.trim(),
+        PageCount:        parseInt(form.page_count) || 0,
+        Genres:           form.genres.split(',').map(s => s.trim()).filter(Boolean),
+        PubDate:          finalDate,
+        Publisher:        form.publisher.trim(),
       };
+      
       if (isNew) await adminApi.createBook(payload);
-      else       await adminApi.updateBook(book.id, payload);
+      else       await adminApi.updateBook(book.id || book.ID, payload);
+      
       toast.success(isNew ? 'Книгу додано!' : 'Збережено!');
       onSaved();
       onClose();
@@ -136,19 +167,6 @@ function BookModal({ book, onClose, onSaved }) {
     }
     setSaving(false);
   };
-
-  const F = ({ label, k, type = 'text', ...rest }) => (
-    <div>
-      <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">{label}</label>
-      <input
-        type={type}
-        value={form[k] ?? ''}
-        onChange={e => setForm(f => ({ ...f, [k]: e.target.value }))}
-        className="w-full border border-slate-200 rounded-xl px-4 py-2.5 text-sm outline-none focus:border-indigo-400 transition-colors"
-        {...rest}
-      />
-    </div>
-  );
 
   return (
     <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
@@ -184,13 +202,13 @@ function BookModal({ book, onClose, onSaved }) {
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
-            <F label="Назва *"        k="title" />
-            <F label="Автор(и) *"     k="author"           placeholder="через кому" />
-            <F label="Жанри"          k="genres"           placeholder="фентезі, роман, драма" />
-            <F label="Кількість стор."k="page_count"       type="number" />
-            <F label="Видавництво"    k="publisher" />
-            <F label="Дата публікації"k="publication_date" type="date" />
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <FormField label="Назва *" value={form.title} onChange={e => setForm(f => ({ ...f, title: e.target.value }))} />
+            <FormField label="Автор(и) *" value={form.author} onChange={e => setForm(f => ({ ...f, author: e.target.value }))} placeholder="через кому" />
+            <FormField label="Жанри" value={form.genres} onChange={e => setForm(f => ({ ...f, genres: e.target.value }))} placeholder="фентезі, роман, драма" />
+            <FormField label="Кількість стор." value={form.page_count} onChange={e => setForm(f => ({ ...f, page_count: e.target.value }))} type="number" />
+            <FormField label="Видавництво" value={form.publisher} onChange={e => setForm(f => ({ ...f, publisher: e.target.value }))} />
+            <FormField label="Дата публікації" value={form.publication_date} onChange={e => setForm(f => ({ ...f, publication_date: e.target.value }))} type="date" />
           </div>
 
           <div>
@@ -224,7 +242,7 @@ export default function AdminPage() {
   const [bookTotal, setBookTotal] = useState(0);
   const [bookPage, setBookPage]   = useState(1);
   const [bookLimit]  = useState(10);
-  const [bookSort, setBookSort]   = useState({ field: 'created_at', order: 'DESC' });
+  const [bookSort]   = useState({ field: 'created_at', order: 'DESC' });
   const [search, setSearch]       = useState('');
   const [users,   setUsers]   = useState([]);
   const [reviews, setReviews] = useState([]);
@@ -244,8 +262,8 @@ export default function AdminPage() {
     setLoading(true);
     try {
       const data = await adminApi.getBooks(bookPage, bookLimit, bookSort.field, bookSort.order, search);
-      setBooks(data?.data || []);
-      setBookTotal(data?.total || 0);
+      setBooks(data?.data || data || []);
+      setBookTotal(data?.total || data?.length || 0);
     } catch { toast.error('Помилка завантаження книг'); }
     setLoading(false);
   }, [bookPage, bookLimit, bookSort, search]);
@@ -277,60 +295,58 @@ export default function AdminPage() {
     setLoading(false);
   }, []);
 
-  useEffect(() => { loadStats(); }, [loadStats]);
-
+  // ВИПРАВЛЕНО: Скидаємо пошук і сторінку ТІЛЬКИ при зміні вкладки (щоб не ламати пагінацію)
   useEffect(() => {
     setSearch('');
     setBookPage(1);
-    if (tab === 'books')   loadBooks();
-    if (tab === 'users')   loadUsers();
-    if (tab === 'reviews') loadReviews();
-    if (tab === 'clubs')   loadClubs();
-  }, [tab, loadBooks, loadUsers, loadReviews, loadClubs]);
+  }, [tab]);
 
-  useEffect(() => {
-    if (tab === 'books') loadBooks();
-  }, [bookPage, bookSort, loadBooks]);
-
+  // ВИПРАВЛЕНО: Завантажуємо дані залежно від відкритої вкладки (з мінімальною затримкою для пошуку)
   useEffect(() => {
     const t = setTimeout(() => {
-      if (tab === 'books')  loadBooks();
-      if (tab === 'users')  loadUsers();
-    }, 400);
+      if (tab === 'dashboard') loadStats();
+      else if (tab === 'books') loadBooks();
+      else if (tab === 'users') loadUsers();
+      else if (tab === 'reviews') loadReviews();
+      else if (tab === 'clubs') loadClubs();
+    }, 300);
     return () => clearTimeout(t);
-  }, [search, loadBooks, loadUsers]);
+  }, [tab, bookPage, search, loadStats, loadBooks, loadUsers, loadReviews, loadClubs]);
 
   const ask = (title, body, action) => setConfirm({ title, body, action });
 
-  // Відкрити модалку редагування з повними даними книги
   const openEditBook = async (b) => {
+    if (b === 'new') {
+      setBookModal('new');
+      return;
+    }
     setBookModal('loading');
     try {
-      const full = await adminApi.getBook(b.id);
-      setBookModal(full);
+      const res = await adminApi.getBook(b.id || b.ID);
+      const fullBook = res?.data || res?.book || res;
+      setBookModal(fullBook);
     } catch {
-      // fallback to list data
       setBookModal(b);
     }
   };
 
   const delBook = (b) => ask(
-    `Видалити «${b.title}»?`,
+    `Видалити «${b.title || b.Title}»?`,
     'Книга та всі пов\'язані записи будуть видалені назавжди.',
     async () => {
-      await adminApi.deleteBook(b.id);
+      await adminApi.deleteBook(b.id || b.ID);
       toast.success('Книгу видалено');
       loadBooks();
     }
   );
 
   const delUser = (u) => ask(
-    `Видалити @${u.username}?`,
+    `Видалити @${u.username || u.Username}?`,
     'Акаунт та всі дані користувача будуть видалені назавжди.',
     async () => {
-      await adminApi.deleteUser(u.id);
+      await adminApi.deleteUser(u.id || u.ID);
       toast.success('Користувача видалено');
-      setUsers(p => p.filter(x => x.id !== u.id));
+      setUsers(p => p.filter(x => (x.id || x.ID) !== (u.id || u.ID)));
     }
   );
 
@@ -338,31 +354,7 @@ export default function AdminPage() {
     try {
       await adminApi.setUserRole(id, role);
       toast.success('Роль змінено');
-      setUsers(p => p.map(u => u.id === id ? { ...u, role } : u));
-
-      // Якщо змінили роль поточного користувача — оновлюємо токен
-      const currentUserId = (() => {
-        try {
-          const token = localStorage.getItem('token');
-          if (!token) return null;
-          const payload = JSON.parse(atob(token.split('.')[1]));
-          return payload.user_id;
-        } catch { return null; }
-      })();
-
-      if (currentUserId === id) {
-        try {
-          const res = await fetch(
-            (import.meta.env.VITE_API_URL || 'http://localhost:8080/api') + '/me/refresh-token',
-            { method: 'POST', headers: { Authorization: `Bearer ${localStorage.getItem('token')}` } }
-          );
-          if (res.ok) {
-            const data = await res.json();
-            localStorage.setItem('token', data.token);
-            toast.success('Ваш токен оновлено — перезавантажте сторінку');
-          }
-        } catch {}
-      }
+      setUsers(p => p.map(u => (u.id || u.ID) === id ? { ...u, role } : u));
     } catch { toast.error('Помилка зміни ролі'); }
   };
 
@@ -370,19 +362,19 @@ export default function AdminPage() {
     'Видалити відгук?',
     'Відгук буде видалено назавжди.',
     async () => {
-      await adminApi.deleteReview(r.id);
+      await adminApi.deleteReview(r.id || r.ID);
       toast.success('Відгук видалено');
-      setReviews(p => p.filter(x => x.id !== r.id));
+      setReviews(p => p.filter(x => (x.id || x.ID) !== (r.id || r.ID)));
     }
   );
 
   const delClub = (c) => ask(
-    `Видалити «${c.name}»?`,
+    `Видалити «${c.name || c.Name}»?`,
     'Спільнота, чат та всі повідомлення будуть видалені.',
     async () => {
-      await adminApi.deleteClub(c.id);
+      await adminApi.deleteClub(c.id || c.ID);
       toast.success('Спільноту видалено');
-      setClubs(p => p.filter(x => x.id !== c.id));
+      setClubs(p => p.filter(x => (x.id || x.ID) !== (c.id || c.ID)));
     }
   );
 
@@ -394,42 +386,44 @@ export default function AdminPage() {
     { id: 'clubs',     label: 'Спільноти',           icon: Users2   },
   ];
 
+  // ВИПРАВЛЕНО: Безпечне читання загальної кількості книг для графіка, щоб не падала сторінка
+  const totalBooksCount = stats?.total_books || 0;
+
   return (
-    <div className="flex h-[calc(100vh-60px)] bg-slate-50 font-sans overflow-hidden">
-      {/* Sidebar */}
-      <aside className="w-60 bg-white border-r border-slate-200 flex flex-col shadow-sm shrink-0">
-        <div className="p-6">
+    <div className="flex flex-col md:flex-row h-screen bg-slate-50 font-sans overflow-hidden">
+      <aside className="w-full md:w-60 bg-white border-b md:border-r border-slate-200 flex flex-col shadow-sm shrink-0 h-auto md:h-full z-10">
+        <div className="p-4 md:p-6 flex justify-between items-center md:block">
           <h1 className="text-lg font-black text-slate-900 flex items-center gap-2">
-            <Shield className="w-5 h-5 text-indigo-600" /> AdminPanel
+            <Shield className="w-5 h-5 text-indigo-600" /> <span className="hidden sm:inline">AdminPanel</span>
           </h1>
-          <p className="text-[10px] text-slate-400 uppercase tracking-widest mt-0.5 pl-7">ReadLounge</p>
+          <p className="text-[10px] text-slate-400 uppercase tracking-widest mt-0.5 hidden md:block pl-7">ReadLounge</p>
         </div>
-        <nav className="flex-1 px-3 space-y-0.5">
+        
+        <nav className="flex md:flex-col flex-1 px-3 space-x-2 md:space-x-0 md:space-y-0.5 overflow-x-auto custom-scrollbar pb-2 md:pb-0">
           {NAV.map(n => (
             <button
               key={n.id}
               onClick={() => setTab(n.id)}
-              className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold transition-all ${
+              className={`shrink-0 md:w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold transition-all ${
                 tab === n.id ? 'bg-indigo-50 text-indigo-700' : 'text-slate-600 hover:bg-slate-50'
               }`}
             >
               <n.icon className={`w-4 h-4 ${tab === n.id ? 'text-indigo-600' : 'text-slate-400'}`} />
-              {n.label}
+              <span className="hidden sm:inline md:inline">{n.label}</span>
             </button>
           ))}
         </nav>
-        <div className="p-4">
+        <div className="p-4 hidden md:block">
           <a href="/" className="flex items-center gap-2 px-3 py-2 rounded-xl text-xs text-slate-500 hover:text-slate-800 hover:bg-slate-100 transition-colors font-semibold">
             <ChevronRight className="w-3.5 h-3.5 rotate-180" /> Повернутись
           </a>
         </div>
       </aside>
 
-      {/* Main */}
-      <main className="flex-1 overflow-y-auto p-6 md:p-8">
-        <div className="max-w-6xl mx-auto">
+      <main className="flex-1 overflow-y-auto p-4 md:p-8">
+        <div className="max-w-6xl mx-auto space-y-6">
 
-          {/* ══ DASHBOARD & DEEP ANALYTICS ══════════════════════ */}
+          {/* ══ DASHBOARD ══════════════════════════════════════ */}
           {tab === 'dashboard' && (
             <div className="animate-in fade-in duration-200 space-y-8">
               <div className="flex items-center justify-between">
@@ -442,7 +436,6 @@ export default function AdminPage() {
                 </button>
               </div>
 
-              {/* Метрики верхнього рівня */}
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                 <StatCard label="Усього Книг"   value={stats?.total_books}   icon={BookOpen} color="#4F46E5" />
                 <StatCard label="Користувачів" value={stats?.total_users}   icon={Users}    color="#10B981" />
@@ -450,7 +443,6 @@ export default function AdminPage() {
                 <StatCard label="Спільнот"     value={stats?.total_clubs}   icon={Users2}   color="#EC4899" />
               </div>
 
-              {/* Часова активність */}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 {[
                   { label: 'Нових читачів (30 днів)',   value: stats?.new_users_30d,     color: 'border-l-green-500' },
@@ -464,9 +456,7 @@ export default function AdminPage() {
                 ))}
               </div>
 
-              {/* НОВИЙ БЛОК: РОЗШИРЕНА ТАБЛИЦЯ АНАЛІТИКИ ТА СТАТУСУ */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                {/* 1. Популярність жанрів (Динамічний CSS графік) */}
                 <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm flex flex-col">
                   <div className="flex items-center gap-2 mb-4">
                     <BarChart3 className="w-4 h-4 text-indigo-600" />
@@ -474,10 +464,10 @@ export default function AdminPage() {
                   </div>
                   <div className="space-y-3 flex-1 justify-center flex flex-col">
                     {[
-                      { name: 'Фентезі & Фантастика', percentage: '78%', count: stats?.total_books ? Math.round(stats.total_books * 0.4) : 42, color: 'bg-indigo-600' },
-                      { name: 'Психологія & Саморозвиток', percentage: '54%', count: stats?.total_books ? Math.round(stats.total_books * 0.25) : 26, color: 'bg-emerald-500' },
-                      { name: 'Детективи & Трилери', percentage: '41%', count: stats?.total_books ? Math.round(stats.total_books * 0.18) : 19, color: 'bg-amber-500' },
-                      { name: 'Сучасна проза', percentage: '29%', count: stats?.total_books ? Math.round(stats.total_books * 0.12) : 12, color: 'bg-rose-500' },
+                      { name: 'Фентезі & Фантастика', percentage: '78%', count: totalBooksCount ? Math.round(totalBooksCount * 0.4) : 42, color: 'bg-indigo-600' },
+                      { name: 'Психологія & Саморозвиток', percentage: '54%', count: totalBooksCount ? Math.round(totalBooksCount * 0.25) : 26, color: 'bg-emerald-500' },
+                      { name: 'Детективи & Трилери', percentage: '41%', count: totalBooksCount ? Math.round(totalBooksCount * 0.18) : 19, color: 'bg-amber-500' },
+                      { name: 'Сучасна проза', percentage: '29%', count: totalBooksCount ? Math.round(totalBooksCount * 0.12) : 12, color: 'bg-rose-500' },
                     ].map(g => (
                       <div key={g.name} className="space-y-1">
                         <div className="flex justify-between text-xs font-semibold text-slate-600">
@@ -492,7 +482,6 @@ export default function AdminPage() {
                   </div>
                 </div>
 
-                {/* 2. Стан Серверної Системи */}
                 <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm flex flex-col">
                   <div className="flex items-center gap-2 mb-4">
                     <Server className="w-4 h-4 text-emerald-600" />
@@ -524,62 +513,71 @@ export default function AdminPage() {
           {/* ══ BOOKS CATALOG ══════════════════════════════════ */}
           {tab === 'books' && (
             <div className="animate-in fade-in duration-200">
-              <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
-                <h2 className="text-2xl font-bold text-slate-900">Каталог книг <span className="ml-2 text-sm font-medium text-slate-400">({bookTotal})</span></h2>
-                <div className="flex gap-3 flex-wrap">
+              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-6">
+                <h2 className="text-2xl font-bold text-slate-900">Каталог книг <span className="text-sm font-medium text-slate-400">({bookTotal})</span></h2>
+                <div className="flex gap-3 w-full sm:w-auto">
                   <input
                     value={search} onChange={e => { setSearch(e.target.value); setBookPage(1); }}
-                    placeholder="Пошук за назвою або автором..."
-                    className="border border-slate-200 rounded-xl py-2.5 px-4 text-sm outline-none focus:border-indigo-400 w-72 shadow-sm"
+                    placeholder="Пошук..."
+                    className="flex-1 sm:w-72 border border-slate-200 rounded-xl py-2.5 px-4 text-sm outline-none focus:border-indigo-400 shadow-sm"
                   />
-                  <button onClick={() => openEditBook('new')} className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2.5 rounded-xl font-bold text-sm transition-colors shadow-sm">
-                    <Plus className="w-4 h-4" /> Додати
+                  <button onClick={() => openEditBook('new')} className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2.5 rounded-xl font-bold text-sm transition-colors shadow-sm shrink-0">
+                    <Plus className="w-4 h-4" /> <span className="hidden sm:inline">Додати</span>
                   </button>
                 </div>
               </div>
 
               <div className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden">
-                {loading ? <Skeleton rows={bookLimit} /> : books.length === 0
-                  ? <Empty title="Книг не знайдено" icon={BookOpen} />
-                  : (
-                    <div className="divide-y divide-slate-100">
-                      <div className="grid grid-cols-12 gap-3 px-6 py-3 bg-slate-50 text-[10px] font-bold uppercase tracking-widest text-slate-500">
-                        <div className="col-span-4">Книга</div>
-                        <div className="col-span-3">Автор</div>
-                        <div className="col-span-3">Жанри</div>
-                        <div className="col-span-1">Стор.</div>
-                        <div className="col-span-1 text-right">Дії</div>
-                      </div>
-                      {books.map(b => (
-                        <div key={b.id} className="grid grid-cols-12 gap-3 px-6 py-3 items-center hover:bg-slate-50 transition-colors">
-                          <div className="col-span-4 flex items-center gap-3 min-w-0">
-                            <div className="w-8 h-11 bg-slate-100 rounded-md overflow-hidden shrink-0 border border-slate-200">
-                              {b.cover_url && <img src={b.cover_url} className="w-full h-full object-cover" alt="" onError={e => e.target.style.display='none'} />}
-                            </div>
-                            <span className="font-semibold text-slate-900 text-sm truncate">{b.title}</span>
-                          </div>
-                          <div className="col-span-3 text-sm text-slate-600 truncate">{b.authors?.join(', ') || '—'}</div>
-                          
-                          {/* Повноцінно виводимо Жанри книги у вигляді тегів */}
-                          <div className="col-span-3 flex flex-wrap gap-1 max-h-12 overflow-hidden truncate">
-                            {b.genres && b.genres.length > 0 ? b.genres.map((g, i) => (
-                              <span key={i} className="bg-indigo-50/60 border border-indigo-100 text-[10px] text-indigo-600 font-bold px-1.5 py-0.5 rounded-md">{g}</span>
-                            )) : <span className="text-slate-300 text-xs">—</span>}
-                          </div>
-                          
-                          {/* Сторінки підтягуються */}
-                          <div className="col-span-1 text-sm font-semibold text-slate-500">{b.page_count || '—'}</div>
-                          
-                          <div className="col-span-1 flex justify-end gap-1">
-                            <button onClick={() => setBookModal(b)} className="p-2 rounded-lg text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 transition-colors"><Edit2 className="w-3.5 h-3.5" /></button>
-                            <button onClick={() => delBook(b)} className="p-2 rounded-lg text-slate-400 hover:text-red-600 hover:bg-red-50 transition-colors"><Trash2 className="w-3.5 h-3.5" /></button>
-                          </div>
+                <div className="overflow-x-auto">
+                  {loading ? <Skeleton rows={bookLimit} /> : books.length === 0
+                    ? <Empty title="Книг не знайдено" icon={BookOpen} />
+                    : (
+                      <div className="min-w-[800px] divide-y divide-slate-100">
+                        <div className="grid grid-cols-12 gap-3 px-6 py-3 bg-slate-50 text-[10px] font-bold uppercase tracking-widest text-slate-500">
+                          <div className="col-span-4">Книга</div>
+                          <div className="col-span-3">Автор</div>
+                          <div className="col-span-3">Жанри</div>
+                          <div className="col-span-1">Стор.</div>
+                          <div className="col-span-1 text-right">Дії</div>
                         </div>
-                      ))}
-                    </div>
-                  )
-                }
-                <div className="px-6 py-3 border-t border-slate-100 bg-slate-50 flex items-center justify-between">
+                        {books.map(b => {
+                          // ВИПРАВЛЕНО: Читаємо жанри через Category, оскільки бекенд так віддає їх в AdminListBooks
+                          const genreStr = b.category || b.Category;
+                          // ВИПРАВЛЕНО: Читаємо сторінки (якщо бекенд їх не віддає, буде прочерк, це нормально)
+                          const pages = b.page_count || b.PageCount || '—';
+                          
+                          return (
+                            <div key={b.id || b.ID} className="grid grid-cols-12 gap-3 px-6 py-3 items-center hover:bg-slate-50 transition-colors">
+                              <div className="col-span-4 flex items-center gap-3 min-w-0">
+                                <div className="w-8 h-11 bg-slate-100 rounded-md overflow-hidden shrink-0 border border-slate-200">
+                                  {(b.cover_url || b.CoverURL) && <img src={b.cover_url || b.CoverURL} className="w-full h-full object-cover" alt="" onError={e => e.target.style.display='none'} />}
+                                </div>
+                                <span className="font-semibold text-slate-900 text-sm truncate">{b.title || b.Title}</span>
+                              </div>
+                              <div className="col-span-3 text-sm text-slate-600 truncate">{b.authors?.join(', ') || b.author || b.Author || '—'}</div>
+                              
+                              <div className="col-span-3 flex flex-wrap gap-1 max-h-12 overflow-hidden truncate">
+                                {b.genres?.length > 0 ? b.genres.map((g, i) => (
+                                  <span key={i} className="bg-indigo-50/60 border border-indigo-100 text-[10px] text-indigo-600 font-bold px-1.5 py-0.5 rounded-md">{g}</span>
+                                )) : genreStr ? (
+                                  <span className="bg-indigo-50/60 border border-indigo-100 text-[10px] text-indigo-600 font-bold px-1.5 py-0.5 rounded-md">{genreStr}</span>
+                                ) : <span className="text-slate-300 text-xs">—</span>}
+                              </div>
+                              
+                              <div className="col-span-1 text-sm font-semibold text-slate-500">{pages}</div>
+                              
+                              <div className="col-span-1 flex justify-end gap-1">
+                                <button onClick={() => openEditBook(b)} className="p-2 rounded-lg text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 transition-colors"><Edit2 className="w-3.5 h-3.5" /></button>
+                                <button onClick={() => delBook(b)} className="p-2 rounded-lg text-slate-400 hover:text-red-600 hover:bg-red-50 transition-colors"><Trash2 className="w-3.5 h-3.5" /></button>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )
+                  }
+                </div>
+                <div className="px-4 sm:px-6 py-3 border-t border-slate-100 bg-slate-50 flex items-center justify-between">
                   <p className="text-xs text-slate-500 font-semibold">
                     {bookTotal > 0 ? `${(bookPage - 1) * bookLimit + 1}–${Math.min(bookPage * bookLimit, bookTotal)} з ${bookTotal}` : '0 книг'}
                   </p>
@@ -599,43 +597,47 @@ export default function AdminPage() {
           {/* ══ USERS ══════════════════════════════════════════ */}
           {tab === 'users' && (
             <div className="animate-in fade-in duration-200">
-              <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
+              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-6">
                 <h2 className="text-2xl font-bold text-slate-900">Користувачі <span className="ml-2 text-sm font-medium text-slate-400">({users.length})</span></h2>
-                <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Пошук за ніком..." className="border border-slate-200 rounded-xl py-2.5 px-4 text-sm outline-none focus:border-indigo-400 w-64 shadow-sm" />
+                <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Пошук..." className="w-full sm:w-64 border border-slate-200 rounded-xl py-2.5 px-4 text-sm outline-none focus:border-indigo-400 shadow-sm" />
               </div>
               <div className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden">
-                {loading ? <Skeleton /> : users.length === 0
-                  ? <Empty title="Користувачів не знайдено" icon={Users} />
-                  : (
-                    <div className="divide-y divide-slate-100">
-                      <div className="grid grid-cols-12 gap-3 px-6 py-3 bg-slate-50 text-[10px] font-bold uppercase tracking-widest text-slate-500">
-                        <div className="col-span-4">Користувач</div>
-                        <div className="col-span-4">Email</div>
-                        <div className="col-span-2">Роль</div>
-                        <div className="col-span-2 text-right">Дії</div>
-                      </div>
-                      {users.map(u => (
-                        <div key={u.id} className="grid grid-cols-12 gap-3 px-6 py-3.5 items-center hover:bg-slate-50 transition-colors">
-                          <div className="col-span-4 flex items-center gap-2.5 min-w-0">
-                            <div className="w-8 h-8 rounded-full bg-indigo-100 flex items-center justify-center text-xs font-bold text-indigo-600 shrink-0">{u.username?.[0]?.toUpperCase() ?? '?'}</div>
-                            <span className="font-semibold text-slate-900 text-sm truncate">@{u.username}</span>
-                          </div>
-                          <div className="col-span-4 text-sm text-slate-500 truncate">{u.email || '—'}</div>
-                          <div className="col-span-2">
-                            <select value={u.role || 'user'} onChange={e => changeRole(u.id, e.target.value)} className={`text-xs font-bold px-2.5 py-1.5 rounded-lg border-0 outline-none cursor-pointer transition-colors ${roleColors[u.role] || roleColors.user}`}>
-                              <option value="user">user</option>
-                              <option value="moderator">moderator</option>
-                              <option value="admin">admin</option>
-                            </select>
-                          </div>
-                          <div className="col-span-2 flex justify-end">
-                            <button onClick={() => delUser(u)} className="p-2 rounded-lg text-slate-400 hover:text-red-600 hover:bg-red-50 transition-colors"><Trash2 className="w-3.5 h-3.5" /></button>
-                          </div>
+                <div className="overflow-x-auto">
+                  {loading ? <Skeleton /> : users.length === 0
+                    ? <Empty title="Користувачів не знайдено" icon={Users} />
+                    : (
+                      <div className="min-w-[700px] divide-y divide-slate-100">
+                        <div className="grid grid-cols-12 gap-3 px-6 py-3 bg-slate-50 text-[10px] font-bold uppercase tracking-widest text-slate-500">
+                          <div className="col-span-4">Користувач</div>
+                          <div className="col-span-4">Email</div>
+                          <div className="col-span-2">Роль</div>
+                          <div className="col-span-2 text-right">Дії</div>
                         </div>
-                      ))}
-                    </div>
-                  )
-                }
+                        {users.map(u => (
+                          <div key={u.id || u.ID} className="grid grid-cols-12 gap-3 px-6 py-3.5 items-center hover:bg-slate-50 transition-colors">
+                            <div className="col-span-4 flex items-center gap-2.5 min-w-0">
+                              <div className="w-8 h-8 rounded-full bg-indigo-100 flex items-center justify-center text-xs font-bold text-indigo-600 shrink-0">
+                                {(u.username || u.Username)?.[0]?.toUpperCase() ?? '?'}
+                              </div>
+                              <span className="font-semibold text-slate-900 text-sm truncate">@{u.username || u.Username}</span>
+                            </div>
+                            <div className="col-span-4 text-sm text-slate-500 truncate">{u.email || u.Email || '—'}</div>
+                            <div className="col-span-2">
+                              <select value={u.role || u.Role || 'user'} onChange={e => changeRole(u.id || u.ID, e.target.value)} className={`text-xs font-bold px-2.5 py-1.5 rounded-lg border-0 outline-none cursor-pointer transition-colors ${roleColors[u.role || u.Role] || roleColors.user}`}>
+                                <option value="user">user</option>
+                                <option value="moderator">moderator</option>
+                                <option value="admin">admin</option>
+                              </select>
+                            </div>
+                            <div className="col-span-2 flex justify-end">
+                              <button onClick={() => delUser(u)} className="p-2 rounded-lg text-slate-400 hover:text-red-600 hover:bg-red-50 transition-colors"><Trash2 className="w-3.5 h-3.5" /></button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )
+                  }
+                </div>
               </div>
             </div>
           )}
@@ -647,34 +649,51 @@ export default function AdminPage() {
                 <h2 className="text-2xl font-bold text-slate-900">Відгуки <span className="ml-2 text-sm font-medium text-slate-400">({reviews.length})</span></h2>
                 <button onClick={loadReviews} className="flex items-center gap-2 px-4 py-2 rounded-xl border border-slate-200 text-sm font-bold text-slate-600 hover:bg-white transition-all"><RefreshCw className="w-4 h-4" /> Оновити</button>
               </div>
-              {loading ? <Skeleton /> : reviews.length === 0
-                ? <Empty title="Відгуків немає" icon={Star} />
-                : (
-                  <div className="space-y-3">
-                    {reviews.map(r => (
-                      <div key={r.id} className="bg-white border border-slate-200 rounded-2xl p-5 flex items-start gap-4 shadow-sm">
-                        <div className="flex-1 min-w-0">
-                          <div className="flex flex-wrap items-center gap-2 mb-2">
-                            <span className="font-bold text-sm text-indigo-600">@{r.username}</span>
-                            <span className="text-slate-300">·</span>
-                            <div className="flex gap-0.5">
-                              {Array.from({ length: 5 }).map((_, i) => (
-                                <Star key={i} className={`w-3.5 h-3.5 ${i < (r.rating || 0) ? 'fill-amber-400 text-amber-400' : 'text-slate-200'}`} />
-                              ))}
+              <div className="overflow-x-auto">
+                <div className="min-w-[600px]">
+                  {loading ? <Skeleton /> : reviews.length === 0
+                    ? <Empty title="Відгуків немає" icon={Star} />
+                    : (
+                      <div className="space-y-3">
+                        {reviews.map(r => {
+                          // ВИПРАВЛЕНО: Читаємо оцінку з великої або маленької літери. 
+                          // Назви книг бекенд не віддає взагалі у списку адмінки, тому приховуємо цей текст якщо його немає.
+                          const ratingVal = r.rating ?? r.Rating ?? 0;
+                          const revText = r.review_text ?? r.ReviewText;
+                          const bTitle = r.book_title ?? r.BookTitle;
+                          const uname = r.username ?? r.Username ?? 'Користувач';
+
+                          return (
+                            <div key={r.id || r.ID} className="bg-white border border-slate-200 rounded-2xl p-5 flex items-start gap-4 shadow-sm">
+                              <div className="flex-1 min-w-0">
+                                <div className="flex flex-wrap items-center gap-2 mb-2">
+                                  <span className="font-bold text-sm text-indigo-600">@{uname}</span>
+                                  <span className="text-slate-300">·</span>
+                                  <div className="flex gap-0.5">
+                                    {Array.from({ length: 5 }).map((_, i) => (
+                                      <Star key={i} className={`w-3.5 h-3.5 ${i < ratingVal ? 'fill-amber-400 text-amber-400' : 'text-slate-200'}`} />
+                                    ))}
+                                  </div>
+                                  {bTitle && (
+                                    <>
+                                      <span className="text-slate-300">·</span>
+                                      <span className="text-xs text-slate-500 truncate max-w-[200px]">📖 {bTitle}</span>
+                                    </>
+                                  )}
+                                  {(r.has_spoiler || r.HasSpoiler) && <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-red-100 text-red-600">СПОЙЛЕР</span>}
+                                </div>
+                                <p className="text-sm text-slate-700 leading-relaxed">{revText || <em className="text-slate-400 text-xs">Без тексту</em>}</p>
+                                <p className="text-[10px] text-slate-400 mt-2">{(r.created_at || r.CreatedAt) ? new Date(r.created_at || r.CreatedAt).toLocaleString('uk-UA') : ''}</p>
+                              </div>
+                              <button onClick={() => delReview(r)} className="p-2 rounded-xl text-slate-400 hover:text-red-600 hover:bg-red-50 transition-colors shrink-0"><Trash2 className="w-4 h-4" /></button>
                             </div>
-                            <span className="text-slate-300">·</span>
-                            <span className="text-xs text-slate-500 truncate max-w-[200px]">📖 {r.book_title}</span>
-                            {r.has_spoiler && <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-red-100 text-red-600">СПОЙЛЕР</span>}
-                          </div>
-                          <p className="text-sm text-slate-700 leading-relaxed">{r.review_text || <em className="text-slate-400 text-xs">Без тексту</em>}</p>
-                          <p className="text-[10px] text-slate-400 mt-2">{r.created_at ? new Date(r.created_at).toLocaleString('uk-UA') : ''}</p>
-                        </div>
-                        <button onClick={() => delReview(r)} className="p-2 rounded-xl text-slate-400 hover:text-red-600 hover:bg-red-50 transition-colors shrink-0"><Trash2 className="w-4 h-4" /></button>
+                          );
+                        })}
                       </div>
-                    ))}
-                  </div>
-                )
-              }
+                    )
+                  }
+                </div>
+              </div>
             </div>
           )}
 
@@ -685,52 +704,60 @@ export default function AdminPage() {
                 <h2 className="text-2xl font-bold text-slate-900">Спільноти <span className="ml-2 text-sm font-medium text-slate-400">({clubs.length})</span></h2>
                 <button onClick={loadClubs} className="flex items-center gap-2 px-4 py-2 rounded-xl border border-slate-200 text-sm font-bold text-slate-600 hover:bg-white transition-all"><RefreshCw className="w-4 h-4" /> Оновити</button>
               </div>
-              {loading ? <Skeleton /> : clubs.length === 0
-                ? <Empty title="Спільнот немає" icon={Users2} />
-                : (
-                  <div className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden">
-                    <div className="divide-y divide-slate-100">
-                      <div className="grid grid-cols-12 gap-3 px-6 py-3 bg-slate-50 text-[10px] font-bold uppercase tracking-widest text-slate-500">
-                        <div className="col-span-4">Назва</div>
-                        <div className="col-span-3">Адмін</div>
-                        <div className="col-span-2">Статус</div>
-                        <div className="col-span-2">Учасників</div>
-                        <div className="col-span-1 text-right">Дії</div>
-                      </div>
-                      {clubs.map(c => (
-                        <div key={c.id} className="grid grid-cols-12 gap-3 px-6 py-3.5 items-center hover:bg-slate-50 transition-colors">
-                          <div className="col-span-4 flex items-center gap-2 min-w-0">
-                            {c.is_private ? <Lock className="w-3.5 h-3.5 text-slate-400 shrink-0" /> : <Globe className="w-3.5 h-3.5 text-slate-300 shrink-0" />}
-                            <span className="font-semibold text-slate-900 text-sm truncate">{c.name}</span>
-                          </div>
-                          <div className="col-span-3 text-sm text-slate-500 truncate">@{c.admin_name}</div>
-                          <div className="col-span-2">
-                            <span className={`text-[10px] font-bold px-2 py-1 rounded-lg ${
-                              c.status === 'active'     ? 'bg-green-100 text-green-700' :
-                              c.status === 'discussing' ? 'bg-blue-100 text-blue-700'  :
-                              c.status === 'closed'     ? 'bg-slate-100 text-slate-500' : 'bg-amber-100 text-amber-700'
-                            }`}>
-                              {c.status === 'recruiting' ? 'набір' : c.status === 'active' ? 'активний' : c.status === 'discussing' ? 'обговорення' : c.status === 'closed' ? 'завершено' : c.status}
-                            </span>
-                          </div>
-                          <div className="col-span-2 text-sm text-slate-600 font-semibold">{c.members_count ?? '?'}</div>
-                          <div className="col-span-1 flex justify-end">
-                            <button onClick={() => delClub(c)} className="p-2 rounded-lg text-slate-400 hover:text-red-600 hover:bg-red-50 transition-colors"><Trash2 className="w-3.5 h-3.5" /></button>
-                          </div>
+              <div className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden">
+                <div className="overflow-x-auto">
+                  {loading ? <Skeleton /> : clubs.length === 0
+                    ? <Empty title="Спільнот немає" icon={Users2} />
+                    : (
+                      <div className="min-w-[700px] divide-y divide-slate-100">
+                        <div className="grid grid-cols-12 gap-3 px-6 py-3 bg-slate-50 text-[10px] font-bold uppercase tracking-widest text-slate-500">
+                          <div className="col-span-4">Назва</div>
+                          <div className="col-span-3">Адмін</div>
+                          <div className="col-span-2">Статус</div>
+                          <div className="col-span-2">Учасників</div>
+                          <div className="col-span-1 text-right">Дії</div>
                         </div>
-                      ))}
-                    </div>
-                  </div>
-                )
-              }
+                        {clubs.map(c => {
+                          // ВИПРАВЛЕНО: Зчитуємо поле creator, бо саме його віддає бекенд
+                          const adminName = c.admin_name || c.creator || c.Creator || '—';
+                          const status = c.status || c.Status;
+                          const membersCount = c.members_count ?? c.MembersCount ?? '?';
+
+                          return (
+                            <div key={c.id || c.ID} className="grid grid-cols-12 gap-3 px-6 py-3.5 items-center hover:bg-slate-50 transition-colors">
+                              <div className="col-span-4 flex items-center gap-2 min-w-0">
+                                {(c.is_private || c.IsPrivate) ? <Lock className="w-3.5 h-3.5 text-slate-400 shrink-0" /> : <Globe className="w-3.5 h-3.5 text-slate-300 shrink-0" />}
+                                <span className="font-semibold text-slate-900 text-sm truncate">{c.name || c.Name}</span>
+                              </div>
+                              <div className="col-span-3 text-sm text-slate-500 truncate">@{adminName}</div>
+                              <div className="col-span-2">
+                                <span className={`text-[10px] font-bold px-2 py-1 rounded-lg ${
+                                  status === 'active'     ? 'bg-green-100 text-green-700' :
+                                  status === 'discussing' ? 'bg-blue-100 text-blue-700'  :
+                                  status === 'closed'     ? 'bg-slate-100 text-slate-500' : 'bg-amber-100 text-amber-700'
+                                }`}>
+                                  {status === 'recruiting' ? 'набір' : status === 'active' ? 'активний' : status === 'discussing' ? 'обговорення' : status === 'closed' ? 'завершено' : status}
+                                </span>
+                              </div>
+                              <div className="col-span-2 text-sm text-slate-600 font-semibold">{membersCount}</div>
+                              <div className="col-span-1 flex justify-end">
+                                <button onClick={() => delClub(c)} className="p-2 rounded-lg text-slate-400 hover:text-red-600 hover:bg-red-50 transition-colors"><Trash2 className="w-3.5 h-3.5" /></button>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )
+                  }
+                </div>
+              </div>
             </div>
           )}
 
         </div>
       </main>
 
-      {/* Modals */}
-      {bookModal !== null && (
+      {bookModal !== null && bookModal !== 'loading' && (
         <BookModal
           book={bookModal === 'new' ? null : bookModal}
           onClose={() => setBookModal(null)}

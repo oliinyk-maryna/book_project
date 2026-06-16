@@ -1015,11 +1015,9 @@ func (r *BookRepository) AdminUpdateBook(ctx context.Context, workID string, p A
 	return tx.Commit(ctx)
 }
 
-// AdminListBooks — оптимізований запит для адмінки з пагінацією та сортуванням
 func (r *BookRepository) AdminListBooks(ctx context.Context, page, limit int, sortField, sortOrder, search string) ([]models.Book, int, error) {
 	offset := (page - 1) * limit
 
-	// Захист від SQL-ін'єкцій (валідація полів)
 	dbSortField := "w.created_at"
 	switch sortField {
 	case "title":
@@ -1032,7 +1030,6 @@ func (r *BookRepository) AdminListBooks(ctx context.Context, page, limit int, so
 		sortOrder = "DESC"
 	}
 
-	// 1. Рахуємо загальну кількість (для пагінації)
 	var totalCount int
 	countQuery := "SELECT COUNT(DISTINCT w.id) FROM works w LEFT JOIN authors a ON w.author_id = a.id"
 	var args []interface{}
@@ -1047,13 +1044,14 @@ func (r *BookRepository) AdminListBooks(ctx context.Context, page, limit int, so
 		return nil, 0, err
 	}
 
-	// 2. Отримуємо дані для конкретної сторінки
+	// ВИПРАВЛЕНО: Додано COALESCE(e.page_count, 0)
 	query := fmt.Sprintf(`
 		SELECT DISTINCT ON (%s, w.id)
 			w.id::text, w.title,
 			COALESCE(a.name, 'Невідомий автор'),
 			COALESCE(e.cover_url, ''),
-			COALESCE(g.name, '')
+			COALESCE(g.name, ''),
+			COALESCE(e.page_count, 0)
 		FROM works w
 		LEFT JOIN authors a ON w.author_id = a.id
 		LEFT JOIN editions e ON w.id = e.work_id
@@ -1078,11 +1076,15 @@ func (r *BookRepository) AdminListBooks(ctx context.Context, page, limit int, so
 	for rows.Next() {
 		var b models.Book
 		var author, category string
-		if err := rows.Scan(&b.ID, &b.Title, &author, &b.CoverURL, &category); err != nil {
+		var pageCount int
+
+		// ВИПРАВЛЕНО: Додано сканування pageCount
+		if err := rows.Scan(&b.ID, &b.Title, &author, &b.CoverURL, &category, &pageCount); err != nil {
 			continue
 		}
 		b.Category = category
 		b.Authors = []string{author}
+		b.PageCount = pageCount // Зберігаємо сторінки
 		books = append(books, b)
 	}
 	if books == nil {
@@ -1091,18 +1093,20 @@ func (r *BookRepository) AdminListBooks(ctx context.Context, page, limit int, so
 	return books, totalCount, nil
 }
 
-// AdminListReviews — дістає всі відгуки для адмінки
 func (r *BookRepository) AdminListReviews(ctx context.Context, limit int) ([]models.Review, error) {
+	// ВИПРАВЛЕНО: Оцінка тягнеться з user_editions, додано JOIN works для назви книги
 	query := `
 		SELECT 
 			r.id, 
 			r.user_id, 
 			COALESCE(u.username, 'Unknown') as username,
-			COALESCE(r.rating, 0) as rating, 
+			COALESCE((SELECT personal_rating FROM user_editions ue WHERE ue.user_id = r.user_id AND ue.work_id = r.work_id LIMIT 1), 0)::int as rating, 
 			COALESCE(r.review_text, '') as review_text,
+			COALESCE(w.title, 'Невідома книга') as book_title,
 			r.created_at
 		FROM work_reviews r
 		LEFT JOIN users u ON r.user_id = u.id
+		LEFT JOIN works w ON r.work_id = w.id
 		ORDER BY r.created_at DESC
 		LIMIT $1`
 
@@ -1116,12 +1120,15 @@ func (r *BookRepository) AdminListReviews(ctx context.Context, limit int) ([]mod
 	for rows.Next() {
 		var rev models.Review
 		var rating int
+
+		// ВИПРАВЛЕНО: Додано сканування BookTitle
 		err := rows.Scan(
 			&rev.ID,
 			&rev.UserID,
 			&rev.Username,
 			&rating,
 			&rev.ReviewText,
+			&rev.BookTitle,
 			&rev.CreatedAt,
 		)
 
