@@ -3,7 +3,8 @@ import { Search, X, Loader2, BookOpen } from 'lucide-react';
 import { useNavigate, Link } from 'react-router-dom';
 import { booksApi } from '../../api/books.api';
 
-export default function GlobalSearch() {
+// ДОДАНО: Приймаємо пропси onCloseMobile та handleNavigate з App.jsx
+export default function GlobalSearch({ onCloseMobile, handleNavigate, isMobile }) {
   const [query, setQuery] = useState('');
   const [results, setResults] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -12,7 +13,6 @@ export default function GlobalSearch() {
   const wrapperRef = useRef(null);
   const inputRef = useRef(null);
 
-  // Адаптована під мобільні подія кліку поза пошуком
   useEffect(() => {
     const handleClickOutside = (e) => {
       if (wrapperRef.current && !wrapperRef.current.contains(e.target)) {
@@ -20,7 +20,6 @@ export default function GlobalSearch() {
       }
     };
     
-    // Додаємо слухачі як для мишки (ПК), так і для тачу (смартфони)
     document.addEventListener("mousedown", handleClickOutside);
     document.addEventListener("touchstart", handleClickOutside);
     
@@ -30,7 +29,6 @@ export default function GlobalSearch() {
     };
   }, []);
 
-  // Дебаунс-пошук
   useEffect(() => {
     if (query.trim().length < 2) { setResults([]); return; }
     setLoading(true);
@@ -47,16 +45,18 @@ export default function GlobalSearch() {
     return () => clearTimeout(timer);
   }, [query]);
 
-  // Функція для повного і примусового очищення пошуку
   const forceCloseSearch = () => {
     setIsOpen(false);
     setQuery('');
     setResults([]);
     if (inputRef.current) {
-      inputRef.current.blur(); // Ховаємо клавіатуру
+      inputRef.current.blur();
     }
-    // Скролимо вгору сторінки
-    window.scrollTo({ top: 0, behavior: 'instant' });
+    
+    // ВАЖЛИВО: Кажемо App.jsx закрити мобільний оверлей
+    if (onCloseMobile) {
+      onCloseMobile();
+    }
   };
 
   return (
@@ -91,13 +91,18 @@ export default function GlobalSearch() {
           ) : results.length > 0 ? (
             <div className="max-h-80 overflow-y-auto">
               {results.map(book => (
-                <Link 
+                <div 
                   key={book.id} 
-                  to={`/book/${book.id}`}
-                  // Використовуємо комбінацію подій. Спрацює або клік, або швидкий тач
-                  onClick={forceCloseSearch}
-                  onTouchStart={forceCloseSearch} 
-                  className="flex items-center gap-3 p-3 hover:bg-stone-50 border-b border-stone-50 block cursor-pointer touch-manipulation select-none"
+                  onClick={() => {
+                    // Використовуємо глобальну навігацію з App.jsx, якщо вона є
+                    if (handleNavigate) {
+                      handleNavigate('book', book.id);
+                    } else {
+                      navigate(`/book/${book.id}`);
+                    }
+                    forceCloseSearch(); // Закриваємо всі вікна
+                  }}
+                  className="flex items-center gap-3 p-3 hover:bg-stone-50 border-b border-stone-50 block cursor-pointer select-none"
                 >
                   {/* Обкладинка */}
                   <div className="w-8 h-12 bg-stone-200 rounded overflow-hidden shrink-0 flex items-center justify-center">
@@ -115,7 +120,7 @@ export default function GlobalSearch() {
                       {book.authors?.join(', ') || book.author || 'Невідомий автор'}
                     </p>
                   </div>
-                </Link>
+                </div>
               ))}
             </div>
           ) : (

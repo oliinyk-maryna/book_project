@@ -24,7 +24,7 @@ export default function MainLayout({ children, user, onOpenAuth }) {
           <Link to="/" className="font-serif font-black text-3xl text-stone-900 tracking-tight">Libro.</Link>
         </div>
         <nav className="flex-1 px-4 space-y-1.5">
-          {NAV_ITEMS.map(item => (!item.auth || user) && (
+          {NAV_ITEMS.map(item => (!item.auth || (user && user.id)) && (
             <Link key={item.path} to={item.path} className={`flex items-center gap-4 px-5 py-3.5 rounded-2xl font-bold transition-all ${location.pathname === item.path ? 'bg-stone-900 text-white shadow-md' : 'text-stone-500 hover:bg-stone-100 hover:text-stone-900'}`}>
               <item.icon className="w-5 h-5" /> {item.label}
             </Link>

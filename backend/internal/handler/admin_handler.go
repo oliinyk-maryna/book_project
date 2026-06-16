@@ -30,7 +30,7 @@ func NewAdminHandler(bookRepo *repository.BookRepository, userRepo *repository.U
 
 func adminCheck(r *http.Request) bool {
 	role, _ := r.Context().Value(middleware.ContextUserRole).(string)
-	return role == "admin" || role == "moderator"
+	return role == "admin"
 }
 
 // Універсальна структура для валідації та парсингу JSON книг (Виправляє баг зі сторінками та жанрами)
@@ -189,7 +189,7 @@ func (h *AdminHandler) SetUserRole(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	allowed := map[string]bool{"user": true, "admin": true, "moderator": true}
+	allowed := map[string]bool{"user": true, "admin": true}
 	if !allowed[req.Role] {
 		http.Error(w, "Невірна роль", http.StatusBadRequest)
 		return

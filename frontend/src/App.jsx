@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Routes, Route, useNavigate, useLocation, Navigate } from 'react-router-dom';
-import { Home, Compass, Library, Users, BarChart2, ShieldCheck, Loader2, X, Search, User } from 'lucide-react';
-import { Toaster } from 'react-hot-toast';
+import { Home, Compass, Library, Users, BarChart2, ShieldCheck, Loader2, X, Search, User, Lock } from 'lucide-react';
+import { Toaster, toast } from 'react-hot-toast';
 
 import HomePage        from './pages/HomePage';
 import DiscoverPage    from './pages/DiscoverPage';
@@ -44,13 +44,12 @@ export const FullScreenLoader = () => (
 
 /* ── Bottom Nav ─────────────────────────────────────────────────── */
 const BOTTOM_NAV = [
-  { id:'home',      icon:Home,      label:'Головна',   path:'/'          },
-  { id:'discover',  icon:Compass,   label:'Каталог',   path:'/discover'  },
-  { id:'library',   icon:Library,   label:'Полиця',    path:'/library'   },
-  { id:'clubs',     icon:Users,     label:'Клуби',     path:'/clubs'     },
-  { id:'analytics', icon:BarChart2, label:'Статистика',path:'/analytics' },
+  { id:'home',      icon:Home,      label:'Головна',   path:'/' },
+  { id:'discover',  icon:Compass,   label:'Каталог',   path:'/discover' },
+  { id:'library',   icon:Library,   label:'Полиця',    path:'/library',   auth: true },
+  { id:'clubs',     icon:Users,     label:'Клуби',     path:'/clubs',     auth: true },
+  { id:'analytics', icon:BarChart2, label:'Статистика',path:'/analytics', auth: true },
 ];
-
 export default function App() {
   const [isLoggedIn, setIsLoggedIn]   = useState(false);
   const [currentUser, setCurrentUser] = useState(null);
@@ -95,14 +94,14 @@ export default function App() {
   };
 
   const openAuth = (mode) => { setAuthMode(mode); setAuthOpen(true); };
-  const isAdmin  = currentUser?.role === 'admin' || currentUser?.role === 'moderator';
+  const isAdmin  = currentUser?.role === 'admin';
 
-  const sideNavItems = [
+const sideNavItems = [
     { id:'home',      icon:Home,        label:'Головна',    path:'/' },
     { id:'discover',  icon:Compass,     label:'Каталог',    path:'/discover' },
-    { id:'library',   icon:Library,     label:'Моя полиця', path:'/library' },
-    { id:'clubs',     icon:Users,       label:'Спільноти',  path:'/clubs' },
-    { id:'analytics', icon:BarChart2,   label:'Статистика', path:'/analytics' },
+    { id:'library',   icon:Library,     label:'Моя полиця', path:'/library',  auth: true },
+    { id:'clubs',     icon:Users,       label:'Спільноти',  path:'/clubs',    auth: true },
+    { id:'analytics', icon:BarChart2,   label:'Статистика', path:'/analytics',auth: true },
     ...(isAdmin ? [{ id:'admin', icon:ShieldCheck, label:'Адмін', path:'/admin' }] : []),
   ];
 
@@ -194,16 +193,33 @@ export default function App() {
         </div>
       </header>
 
-      {/* ── Mobile search overlay ─────────────────── */}
+      {/* ── Mobile search overlay (ОНОВЛЕНИЙ ВАРІАНТ) ─────────────────── */}
       {searchOpen && (
-        <div className="fixed inset-0 z-50 md:hidden flex flex-col animate-in fade-in duration-150"
-          style={{ background:'var(--c-bg)' }}>
-          <div className="flex items-center px-4 h-[60px] gap-3" style={{ borderBottom:'1px solid var(--c-border)' }}>
-            <button onClick={() => setSearchOpen(false)} className="p-2 rounded-xl" style={{ background:'var(--c-surface-2)' }}>
-              <X className="w-4 h-4" />
-            </button>
-            <GlobalSearch isMobile handleNavigate={handleNavigate} onCloseMobile={() => setSearchOpen(false)} />
+        <div className="fixed inset-0 z-[100] md:hidden flex flex-col animate-in fade-in slide-in-from-top-2 duration-200"
+          style={{ background: 'rgba(15, 23, 42, 0.4)', backdropFilter: 'blur(4px)' }}>
+          
+          {/* Блок самого пошуку (білий, зверху) */}
+          <div className="bg-white rounded-b-3xl shadow-2xl w-full flex flex-col pb-2">
+            <div className="flex items-center px-4 h-[70px] gap-3">
+              <div className="flex-1">
+                <GlobalSearch 
+                  isMobile={true} 
+                  handleNavigate={handleNavigate} 
+                  onCloseMobile={() => setSearchOpen(false)} 
+                />
+              </div>
+              <button 
+                onClick={() => setSearchOpen(false)} 
+                className="p-2.5 bg-slate-100 rounded-xl text-slate-500 hover:bg-slate-200 transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            {/* результати GlobalSearch */}
           </div>
+
+          {/* Невидима нижня частина екрану — клік по ній закриває пошук */}
+          <div className="flex-1" onClick={() => setSearchOpen(false)} />
         </div>
       )}
 
@@ -212,15 +228,30 @@ export default function App() {
         style={{ background:'var(--c-surface)', borderRight:'1px solid var(--c-border)' }}>
         <nav className="flex-1 overflow-y-auto px-3 py-4 space-y-0.5">
           {sideNavItems.map(item => {
-            const active = location.pathname === item.path || (item.path !== '/' && location.pathname.startsWith(item.path));
+            // Перевіряємо, чи заблокований цей пункт для поточного користувача
+            const isLocked = item.auth && !isLoggedIn;
+            const active = !isLocked && (location.pathname === item.path || (item.path !== '/' && location.pathname.startsWith(item.path)));
+            
             return (
-              <button key={item.id} onClick={() => navigate(item.path)}
-                className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-sm font-semibold transition-all"
+              <button 
+                key={item.id} 
+                onClick={() => {
+                  if (isLocked) {
+                    toast('Щоб розблокувати цю функцію, увійдіть або зареєструйтесь', { icon: '🔒' });
+                    openAuth('login');
+                  } else {
+                    navigate(item.path);
+                  }
+                }}
+                className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-sm font-semibold transition-all ${isLocked ? 'opacity-60 cursor-not-allowed hover:bg-[var(--c-surface-2)]' : ''}`}
                 style={active
                   ? { background:'var(--c-primary-muted)', color:'var(--c-primary)' }
                   : { color:'var(--c-text-2)' }}>
                 <item.icon style={{ width:17, height:17, color: active ? 'var(--c-primary)' : 'var(--c-text-3)' }} />
-                {item.label}
+                <span className="flex-1 text-left">{item.label}</span>
+                
+                {/* Якщо заблоковано, показуємо маленький замочок */}
+                {isLocked && <Lock className="w-3.5 h-3.5 opacity-40" />}
               </button>
             );
           })}
@@ -234,7 +265,7 @@ export default function App() {
           <Route path="/discover"   element={<DiscoverPage {...sharedProps} />} />
           <Route path="/library"    element={<LibraryPage  {...sharedProps} />} />
           <Route path="/clubs"      element={<ClubsPage    {...sharedProps} />} />
-          <Route path="/analytics"  element={<AnalyticsPage isLoggedIn={isLoggedIn} />} />
+          <Route path="/analytics"  element={<AnalyticsPage isLoggedIn={isLoggedIn} openAuthModal={openAuth} />} />
           <Route path="/profile"    element={<ProfilePage handleNavigate={handleNavigate} handleLogout={handleLogout} currentUser={currentUser} isLoggedIn={isLoggedIn} openAuthModal={openAuth} />} />
           <Route path="/settings"   element={<SettingsPage fetchUserProfile={fetchUserProfile} handleNavigate={handleNavigate} />} />
           <Route path="/book/:id"   element={<BookPage     {...sharedProps} />} />
@@ -258,14 +289,33 @@ export default function App() {
         style={{ background:'rgba(255,253,249,.97)', backdropFilter:'blur(20px)', borderTop:'1px solid var(--c-border)' }}>
         <div className="flex h-[56px]">
           {BOTTOM_NAV.map(item => {
-            const active = location.pathname === item.path || (item.path !== '/' && location.pathname.startsWith(item.path));
+            // Перевіряємо, чи заблокований цей пункт для поточного користувача
+            const isLocked = item.auth && !isLoggedIn;
+            const active = !isLocked && (location.pathname === item.path || (item.path !== '/' && location.pathname.startsWith(item.path)));
+            
             return (
-              <button key={item.id} onClick={() => handleNavigate(item.id)}
-                className="flex-1 flex flex-col items-center justify-center gap-0.5 transition-all">
-                <div className="w-10 h-[30px] flex items-center justify-center rounded-xl transition-all duration-300"
+              <button 
+                key={item.id} 
+                onClick={() => {
+                  if (isLocked) {
+                    toast('Щоб розблокувати, увійдіть в акаунт', { icon: '🔒' });
+                    openAuth('login');
+                  } else {
+                    handleNavigate(item.id);
+                  }
+                }}
+                className={`flex-1 flex flex-col items-center justify-center gap-0.5 transition-all ${isLocked ? 'opacity-50' : ''}`}>
+                <div className="relative w-10 h-[30px] flex items-center justify-center rounded-xl transition-all duration-300"
                   style={active ? { background:'var(--c-primary-muted)' } : {}}>
                   <item.icon className="w-[18px] h-[18px] transition-colors duration-200"
                     style={{ color: active ? 'var(--c-primary)' : 'var(--c-text-3)' }} />
+                  
+                  {/* Замочок над іконкою на мобільному */}
+                  {isLocked && (
+                    <div className="absolute -top-1 -right-1 bg-white rounded-full p-[2px] shadow-sm border border-slate-200">
+                      <Lock className="w-[9px] h-[9px] text-slate-400" />
+                    </div>
+                  )}
                 </div>
                 <span className="text-[9px] font-semibold"
                   style={{ color: active ? 'var(--c-primary)' : 'var(--c-text-3)' }}>

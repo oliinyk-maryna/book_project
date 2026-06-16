@@ -8,6 +8,8 @@ export const adminApi = {
   getBooks: (page = 1, limit = 10, sort = 'created_at', order = 'DESC', q = '') =>
     client(`/admin/books?page=${page}&limit=${limit}&sort=${sort}&order=${order}&q=${encodeURIComponent(q)}`),
 
+  getBook: (id) => client(`/admin/books/${id}`), // Додано!
+  
   createBook: (data) => client('/admin/books', { body: data }),
   updateBook: (id, data) => client(`/admin/books/${id}`, { method: 'PUT', body: data }),
   deleteBook: (id) => client(`/admin/books/${id}`, { method: 'DELETE' }),
@@ -37,7 +39,9 @@ export const adminApi = {
       (import.meta.env.VITE_API_URL || 'http://localhost:8080/api') + '/admin/upload',
       { method: 'POST', headers: { Authorization: `Bearer ${token}` }, body: fd }
     );
-    if (!res.ok) throw new Error('Помилка завантаження');
+    
+    // Тут перевірка є, тому помилки завантаження фото ловилися б нормально
+    if (!res.ok) throw new Error('Помилка завантаження'); 
     return res.json();
   },
 };

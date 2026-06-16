@@ -676,9 +676,6 @@ export default function ClubsPage({ currentUser, isLoggedIn }) {
               <p className="text-xs text-slate-400 mt-1 max-w-sm mx-auto leading-relaxed">
                 Знайдіть потрібну книгу в каталозі та увійдіть в діючу спільноту або зберіть власну групу читачів прямо зараз!
               </p>
-              <button onClick={() => { setPrefilledBook(null); setIsModalOpen(true); }} className="mt-4 px-4 py-2 bg-indigo-50 hover:bg-indigo-100 border border-indigo-100 text-indigo-700 rounded-xl font-bold text-xs uppercase tracking-wider transition-colors">
-                Організувати перший клуб
-              </button>
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">

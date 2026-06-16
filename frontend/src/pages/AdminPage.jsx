@@ -85,15 +85,15 @@ function StatCard({ label, value, icon: Icon, color }) {
 function BookModal({ book, onClose, onSaved }) {
   // Покращена ініціалізація: тепер авторів та жанри видно повністю
   const [form, setForm] = useState({
-    title:            book?.title            ?? '',
-    author:           Array.isArray(book?.authors) ? book.authors.join(', ') : (book?.author ?? ''),
-    cover_url:        book?.cover_url        ?? '',
-    description:      book?.description      ?? '',
-    page_count:       book?.page_count       ?? '',
-    genres:           Array.isArray(book?.genres) ? book.genres.join(', ') : (book?.category ?? ''),
-    publication_date: book?.publication_date?.split('T')?.[0] ?? '',
-    publisher:        book?.publisher        ?? '',
-  });
+  title:            book?.title ?? book?.Title ?? '',
+  author:           Array.isArray(book?.authors) ? book.authors.join(', ') : (book?.author ?? book?.Author ?? ''),
+  cover_url:        book?.cover_url ?? book?.CoverURL ?? '',
+  description:      book?.description ?? book?.Description ?? '',
+  page_count:       book?.page_count ?? book?.PageCount ?? '',
+  genres:           Array.isArray(book?.genres) ? book.genres.join(', ') : (book?.category ?? book?.Category ?? ''),
+  publication_date: (book?.publication_date || book?.PublicationDate || book?.PubDate)?.split('T')?.[0] ?? '',
+  publisher:        book?.publisher ?? book?.Publisher ?? '',
+});
   const [saving,    setSaving]    = useState(false);
   const [uploading, setUploading] = useState(false);
   const isNew = !book;
@@ -532,7 +532,7 @@ export default function AdminPage() {
                     placeholder="Пошук за назвою або автором..."
                     className="border border-slate-200 rounded-xl py-2.5 px-4 text-sm outline-none focus:border-indigo-400 w-72 shadow-sm"
                   />
-                  <button onClick={() => setBookModal('new')} className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2.5 rounded-xl font-bold text-sm transition-colors shadow-sm">
+                  <button onClick={() => openEditBook('new')} className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2.5 rounded-xl font-bold text-sm transition-colors shadow-sm">
                     <Plus className="w-4 h-4" /> Додати
                   </button>
                 </div>

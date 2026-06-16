@@ -403,10 +403,12 @@ end_date:     bd.finished_at ? String(bd.finished_at).substring(0, 10) : '',
         }),
       });
 
-      if (res.ok) {
+     if (res.ok) {
         toast.success('Збережено!');
         setIsOnShelf(true);
-        // НЕ робимо loadData() — стан вже актуальний
+        
+        await loadData(); 
+        window.dispatchEvent(new Event('app:refresh'));
       } else {
         const errText = await res.text().catch(() => '');
         toast.error('Помилка збереження' + (errText ? ': ' + errText : ''));

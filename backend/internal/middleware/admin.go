@@ -7,7 +7,7 @@ import "net/http"
 func AdminOnly(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		role, _ := r.Context().Value(ContextUserRole).(string)
-		if role != "admin" && role != "moderator" {
+		if role != "admin" {
 			http.Error(w, "Доступ заборонено", http.StatusForbidden)
 			return
 		}

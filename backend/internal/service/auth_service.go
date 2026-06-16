@@ -66,8 +66,6 @@ func (s *AuthService) Login(ctx context.Context, email, password string) (string
 		return "", errors.New("invalid email or password")
 	}
 
-	// Include role in token so middleware can gate admin routes fast.
-	// Role changes require re-login to take effect — acceptable for this app.
 	role := "user"
 	if user.Role != "" {
 		role = user.Role
@@ -141,7 +139,6 @@ func (s *AuthService) ResetPassword(ctx context.Context, token, newPassword stri
 		return err
 	}
 
-	// 3. Оновлюємо пароль через репозиторій
 	return s.repo.UpdatePasswordAndClearToken(ctx, userID, string(hashedPwd), token)
 }
 
@@ -186,15 +183,12 @@ func (s *AuthService) RefreshToken(ctx context.Context, authHeader string) (stri
 		return "", errors.New("відсутній заголовок Authorization")
 	}
 
-	// Прибираємо "Bearer "
 	tokenString := authHeader[7:]
 
-	// Парсимо старий токен
 	userID, err := s.ParseToken(tokenString)
 	if err != nil {
 		return "", err
 	}
 
-	// Генеруємо новий
 	return s.GenerateAccessToken(userID)
 }
