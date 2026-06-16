@@ -141,23 +141,30 @@ function BookModal({ book, onClose, onSaved }) {
     if (!form.title.trim()) return toast.error('Назва обов\'язкова');
     if (!form.author.trim()) return toast.error('Автор обов\'язковий');
     setSaving(true);
+    
     try {
+      // 1. Очищаємо дату від "Не вказано", щоб не було 500-ї помилки
       let finalDate = form.publication_date || null;
       if (finalDate === 'Не вказано' || finalDate === '') finalDate = null;
 
+      // 2. Використовуємо стандартні snake_case ключі!
       const payload = {
-        Title:            form.title.trim(),
-        Authors:          form.author.split(',').map(s => s.trim()).filter(Boolean),
-        CoverURL:         form.cover_url.trim(),
-        Description:      form.description.trim(),
-        PageCount:        parseInt(form.page_count) || 0,
-        Genres:           form.genres.split(',').map(s => s.trim()).filter(Boolean),
-        PubDate:          finalDate,
-        Publisher:        form.publisher.trim(),
+        title: form.title.trim(),
+        authors: form.author.split(',').map(s => s.trim()).filter(Boolean),
+        description: form.description.trim(),
+        cover_url: form.cover_url.trim(),
+        page_count: parseInt(form.page_count) || 0,
+        publisher: form.publisher.trim(),
+        publication_date: finalDate, // передаємо очищену дату
+        genres: form.genres.split(',').map(s => s.trim()).filter(Boolean),
       };
-      
-      if (isNew) await adminApi.createBook(payload);
-      else       await adminApi.updateBook(book.id || book.ID, payload);
+
+      // 3. Зберігаємо
+      if (isNew) {
+        await adminApi.createBook(payload);
+      } else {
+        await adminApi.updateBook(book.id || book.ID, payload);
+      }
       
       toast.success(isNew ? 'Книгу додано!' : 'Збережено!');
       onSaved();
@@ -165,9 +172,10 @@ function BookModal({ book, onClose, onSaved }) {
     } catch (e) {
       toast.error(e.message || 'Помилка збереження');
     }
+    
     setSaving(false);
   };
-
+  
   return (
     <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
       <div className="bg-white w-full max-w-xl rounded-2xl shadow-2xl border border-slate-200 flex flex-col max-h-[90vh]">
