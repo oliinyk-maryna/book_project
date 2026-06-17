@@ -127,6 +127,30 @@ func (s *BookService) UpdateReview(ctx context.Context, reviewID, userID, text s
 	return s.repo.UpdateReview(ctx, reviewID, userID, text, hasSpoiler)
 }
 
+func (s *BookService) GetAllBooksWithTotal(ctx context.Context, filters models.BookFilters) ([]models.Book, int, error) {
+	// 1. Спочатку дістаємо реальну загальну кількість знайдених книг (без LIMIT)
+	total, err := s.repo.CountAll(ctx, filters)
+	if err != nil {
+		total = 0 // Продовжуємо роботу навіть якщо COUNT впав
+	}
+
+	// 2. Потім витягуємо самі книги для поточної сторінки
+	books, err := s.repo.GetAll(ctx, filters)
+	if err != nil {
+		return nil, 0, fmt.Errorf("помилка завантаження книг: %w", err)
+	}
+	if books == nil {
+		books = []models.Book{}
+	}
+
+	return books, total, nil
+}
+
+// SearchGenres викликає відповідний метод репозиторію для пошуку жанрів
 func (s *BookService) SearchGenres(ctx context.Context, query string) ([]string, error) {
-	return s.repo.SearchGenres(ctx, query) // Замініть s.repo на те, як у вас називається змінна репозиторію
+	return s.repo.SearchGenres(ctx, query)
+}
+
+func (s *BookService) SearchPublishers(ctx context.Context, query string) ([]string, error) {
+	return s.repo.SearchPublishers(ctx, query)
 }

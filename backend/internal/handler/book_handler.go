@@ -45,13 +45,16 @@ func (h *BookHandler) GetAllBooks(w http.ResponseWriter, r *http.Request) {
 		Offset:       offset,
 	}
 
-	books, err := h.bookService.GetAllBooks(r.Context(), filters)
+	books, total, err := h.bookService.GetAllBooksWithTotal(r.Context(), filters)
 	if err != nil {
 		http.Error(w, "Помилка завантаження книг", http.StatusInternalServerError)
 		return
 	}
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(books)
+	json.NewEncoder(w).Encode(map[string]any{
+		"data":  books,
+		"total": total,
+	})
 }
 
 // GET /api/books/search?q=...
@@ -371,4 +374,24 @@ func (h *BookHandler) SearchGenres(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(genres)
+}
+
+// GET /api/publishers/search?q=...
+func (h *BookHandler) SearchPublishers(w http.ResponseWriter, r *http.Request) {
+	query := r.URL.Query().Get("q")
+
+	if len(query) < 2 {
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode([]string{})
+		return
+	}
+
+	pubs, err := h.bookService.SearchPublishers(r.Context(), query)
+	if err != nil {
+		http.Error(w, "Помилка пошуку видавництв: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(pubs)
 }
