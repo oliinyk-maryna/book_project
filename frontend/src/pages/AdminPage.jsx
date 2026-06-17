@@ -106,7 +106,6 @@ function AsyncTagInput({ label, tags, onChange, placeholder, searchUrl, format =
     setIsOpen(true);
     clearTimeout(timer.current);
 
-    // Шукаємо тільки якщо введено 2+ символи
     if (v.trim().length < 2) {
       setSuggestions([]);
       return;
@@ -118,32 +117,27 @@ function AsyncTagInput({ label, tags, onChange, placeholder, searchUrl, format =
         const res = await fetch(`${base}${searchUrl}${encodeURIComponent(v.trim())}`);
         if (res.ok) {
           const data = await res.json();
-          // Прибираємо з підказок ті теги, які вже обрані
           setSuggestions((data || []).filter(opt => !tags.includes(opt)));
         }
       } catch (e) {
         console.error("Помилка пошуку:", e);
       }
-    }, 300); // Дебаунс 300мс, щоб не спамити сервер
+    }, 300);
   };
 
   const handleAddTag = (value) => {
     let trimmed = value.trim();
     if (!trimmed) return;
 
-    // ЗАСТОСОВУЄМО ФОРМАТУВАННЯ
     if (format === 'sentence') {
-      // Для жанрів: "наукова фантастика" -> "Наукова фантастика"
       trimmed = trimmed.charAt(0).toUpperCase() + trimmed.slice(1).toLowerCase();
     } else if (format === 'title') {
-      // Для авторів: "джордж р. р. мартін" -> "Джордж Р. Р. Мартін"
       trimmed = trimmed.split(/\s+/).map(word => {
         if (!word) return '';
         return word.charAt(0).toUpperCase() + word.slice(1).toLowerCase();
       }).join(' ');
     }
 
-    // Перевіряємо на дублікати без урахування регістру
     const isDuplicate = tags.some(t => t.toLowerCase() === trimmed.toLowerCase());
 
     if (!isDuplicate) {
@@ -197,7 +191,6 @@ function AsyncTagInput({ label, tags, onChange, placeholder, searchUrl, format =
         />
       </div>
       
-      {/* Випадаючий список з результатами */}
       {isOpen && (suggestions.length > 0 || input.trim().length >= 2) && (
         <div className="absolute z-50 w-full mt-1 bg-white border border-slate-200 rounded-xl shadow-xl max-h-48 overflow-y-auto custom-scrollbar">
           {suggestions.map((opt, i) => (
@@ -210,7 +203,6 @@ function AsyncTagInput({ label, tags, onChange, placeholder, searchUrl, format =
             </div>
           ))}
           
-          {/* Можливість створити новий запис, якщо такого немає в базі */}
           {input.trim() && !suggestions.some(o => o.toLowerCase() === input.trim().toLowerCase()) && (
             <div 
               onMouseDown={(e) => { e.preventDefault(); handleAddTag(input); }}
@@ -225,6 +217,81 @@ function AsyncTagInput({ label, tags, onChange, placeholder, searchUrl, format =
   );
 }
 
+/* ── КОМПОНЕНТ ДЛЯ ОДНОГО ЗНАЧЕННЯ (ASYNC SINGLE INPUT) ────────────────────── */
+function AsyncSingleInput({ label, value, onChange, placeholder, searchUrl }) {
+  const [suggestions, setSuggestions] = useState([]);
+  const [isOpen, setIsOpen] = useState(false);
+  const timer = useRef(null);
+
+  const handleInput = (v) => {
+    onChange(v); 
+    setIsOpen(true);
+    clearTimeout(timer.current);
+
+    if (v.trim().length < 2) {
+      setSuggestions([]);
+      return;
+    }
+
+    timer.current = setTimeout(async () => {
+      try {
+        const base = import.meta.env.VITE_API_URL || 'http://localhost:8080/api';
+        const res = await fetch(`${base}${searchUrl}${encodeURIComponent(v.trim())}`);
+        if (res.ok) {
+          const data = await res.json();
+          setSuggestions((data || []).filter(opt => opt.toLowerCase() !== v.toLowerCase()));
+        }
+      } catch (e) {
+        console.error("Помилка пошуку:", e);
+      }
+    }, 300);
+  };
+
+  const handleSelect = (opt) => {
+    onChange(opt);
+    setSuggestions([]);
+    setIsOpen(false);
+  };
+
+  return (
+    <div className="w-full relative">
+      <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">{label}</label>
+      <input
+        type="text"
+        value={value || ''}
+        onChange={e => handleInput(e.target.value)}
+        onFocus={() => setIsOpen(true)}
+        onBlur={() => setTimeout(() => setIsOpen(false), 200)}
+        placeholder={placeholder}
+        className="w-full border border-slate-200 rounded-xl px-4 py-2.5 text-sm outline-none focus:border-indigo-400 transition-colors bg-white"
+      />
+      
+      {isOpen && (suggestions.length > 0 || (value && value.trim().length >= 2)) && (
+        <div className="absolute z-50 w-full mt-1 bg-white border border-slate-200 rounded-xl shadow-xl max-h-48 overflow-y-auto custom-scrollbar">
+          {suggestions.map((opt, i) => (
+            <div 
+              key={i} 
+              onMouseDown={(e) => { e.preventDefault(); handleSelect(opt); }}
+              className="px-4 py-2.5 text-sm text-slate-700 hover:bg-indigo-50 hover:text-indigo-700 cursor-pointer transition-colors"
+            >
+              {opt}
+            </div>
+          ))}
+          
+          {/* ДОДАНО: Кнопка створення, якщо точного збігу немає */}
+          {value && value.trim() && !suggestions.some(o => o.toLowerCase() === value.trim().toLowerCase()) && (
+            <div 
+              onMouseDown={(e) => { e.preventDefault(); handleSelect(value.trim()); }}
+              className="px-4 py-2.5 text-sm text-indigo-600 font-medium hover:bg-indigo-50 cursor-pointer flex items-center gap-2 border-t border-slate-100"
+            >
+              <Plus className="w-4 h-4" /> Залишити «{value.trim()}»
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
 function BookModal({ book, onClose, onSaved }) {
   const safeString = (val) => {
     if (!val || val === 'Не вказано' || val === 'Невідомий автор') return '';

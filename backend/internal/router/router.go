@@ -158,12 +158,6 @@ func NewRouter(db *pgxpool.Pool) http.Handler {
 	// ════════════════════════════════════════════════════════════════════════
 	// Пошук та профіль іншого користувача
 	mux.HandleFunc("GET /api/users/search", middleware.OptionalAuth(socialHandler.SearchUsers))
-
-	// Зверніть увагу: ми залишили цей роут, але вам треба впевнитися,
-	// що метод GetProfile існує у вашому socialHandler (я його не переписував).
-	// Якщо його немає, просто закоментуйте цей рядок:
-	// mux.HandleFunc("GET /api/users/{id}/profile", middleware.OptionalAuth(socialHandler.GetProfile))
-
 	// Нова система підписок
 	mux.HandleFunc("POST /api/users/{id}/follow", middleware.Auth(socialHandler.FollowUser))
 	mux.HandleFunc("DELETE /api/users/{id}/follow", middleware.Auth(socialHandler.UnfollowUser))
@@ -171,7 +165,7 @@ func NewRouter(db *pgxpool.Pool) http.Handler {
 	mux.HandleFunc("GET /api/users/{id}/following", middleware.OptionalAuth(socialHandler.GetFollowing))
 
 	// Стрічка активності (залишилась)
-	// Якщо метод GetFeed відсутній у новому SocialHandler, закоментуйте або додайте його
+	// Якщо метод GetFeed відсутній у новому SocialHandler
 	// mux.HandleFunc("GET /api/me/feed", middleware.Auth(socialHandler.GetFeed))
 
 	// ════════════════════════════════════════════════════════════════════════
