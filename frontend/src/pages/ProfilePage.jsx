@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Settings, LogOut, Edit2, Check, Target, BookOpen, Users, X, ChevronRight, UserPlus, Search, Shield } from 'lucide-react';
+import { Settings, LogOut, BookOpen, Users, X, ChevronRight, UserPlus, Search, Shield } from 'lucide-react';
 import { API_URL } from '../config';
 import { userApi } from '../api/user.api';
 import toast from 'react-hot-toast';
@@ -15,7 +15,7 @@ function ConnectionsModal({ type, userId, onClose, handleNavigate }) {
   
   const title = type === 'followers' ? 'Підписники' : 'Підписки';
 
-  // 1. ФІКСАЦІЯ ФОНУ (Блокуємо скрол і запобігаємо стрибку сторінки)
+  // 1. ФІКСАЦІЯ ФОНУ
   useEffect(() => {
     const scrollbarWidth = window.innerWidth - document.documentElement.clientWidth;
     document.body.style.overflow = 'hidden';
@@ -62,7 +62,7 @@ function ConnectionsModal({ type, userId, onClose, handleNavigate }) {
 
   // Глобальний пошук нових користувачів
   useEffect(() => {
-    if (query.trim().length < 1) { // Пошук з 1 літери
+    if (query.trim().length < 1) {
       setIsSearching(false);
       setSearchResults([]);
       return;
@@ -76,8 +76,6 @@ function ConnectionsModal({ type, userId, onClose, handleNavigate }) {
         });
         if (res.ok) {
           const data = await res.json();
-          // ── ОСЬ ТУТ ФІЛЬТРУЄМО СЕБЕ ──────────────────────────────
-          // userId - це ID поточного користувача, який ми передали в пропси
           const filtered = (data || []).filter(user => user.id !== userId);
           setSearchResults(filtered);
         }
@@ -85,7 +83,7 @@ function ConnectionsModal({ type, userId, onClose, handleNavigate }) {
       setIsSearching(false);
     }, 400);
     return () => clearTimeout(t);
-  }, [query, userId]); // Додали userId в залежність
+  }, [query, userId]);
 
   const isSearchActive = query.trim().length >= 1;
   const shown = isSearchActive ? searchResults : people;
@@ -109,7 +107,6 @@ function ConnectionsModal({ type, userId, onClose, handleNavigate }) {
         }}
         onClick={e => e.stopPropagation()}
       >
-        {/* Шапка модалки */}
         <div className="flex items-center justify-between px-5 py-4 shrink-0" style={{ borderBottom: '1px solid var(--c-border)' }}>
           <h3 className="font-bold text-base">{title}</h3>
           <button onClick={onClose} className="p-2 rounded-full transition-colors hover:bg-stone-100" style={{ background: 'var(--c-bg)', color: 'var(--c-text-3)' }}>
@@ -117,7 +114,6 @@ function ConnectionsModal({ type, userId, onClose, handleNavigate }) {
           </button>
         </div>
 
-        {/* Пошук */}
         <div className="px-4 py-3 shrink-0" style={{ borderBottom: '1px solid var(--c-border-2)' }}>
           <div className="relative">
             <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2" style={{ color: 'var(--c-text-3)' }} />
@@ -128,7 +124,6 @@ function ConnectionsModal({ type, userId, onClose, handleNavigate }) {
           </div>
         </div>
 
-        {/* Список */}
         <div className="overflow-y-auto custom-scrollbar flex-1 p-2 space-y-1">
           {loading || isSearching ? (
             Array.from({ length: 4 }).map((_, i) => (
@@ -159,6 +154,7 @@ function ConnectionsModal({ type, userId, onClose, handleNavigate }) {
     </div>
   );
 }
+
 function PersonRow({ person, onNavigate }) {
   const [following, setFollowing] = useState(person.is_following);
   
@@ -173,7 +169,6 @@ function PersonRow({ person, onNavigate }) {
         headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
       });
       if (!res.ok) throw new Error();
-      // Оновлюємо лічильники підписок на головній сторінці профілю
       window.dispatchEvent(new Event('app:refresh'));
     } catch { 
       setFollowing(was);
@@ -201,7 +196,7 @@ function PersonRow({ person, onNavigate }) {
     </div>
   );
 }
-/* ── Картка книги що читається ─────────────────────────────────── */
+
 function ReadingCard({ book, onNavigate }) {
   const pageCount = book.page_count || book.total_pages || 0;
   const currentPage = book.current_page || 0; 
@@ -219,13 +214,11 @@ function ReadingCard({ book, onNavigate }) {
         <p className="text-sm font-bold truncate">{book.title}</p>
         <p className="text-xs truncate mb-2" style={{ color:'var(--c-text-3)' }}>{book.authors?.join(', ') || book.author}</p>
         
-        {/* Рядок прогресу */}
         <div className="h-1.5 rounded-full overflow-hidden" style={{ background:'var(--c-bg)' }}>
           <div className="h-full rounded-full transition-all" style={{ width:`${pct}%`, background:'var(--c-primary)' }} />
         </div>
         
-        {/* Текст прогресу: відображаємо сторінки, тільки якщо вони відомі */}
-        <p className="text-[10px] mt-1" style={{ color:'var:' }}>
+        <p className="text-[10px] mt-1" style={{ color:'var(--c-text-3)' }}>
           {pageCount > 0 ? (
             <>{pct}% · стор. {currentPage}/{pageCount}</>
           ) : (
@@ -238,29 +231,23 @@ function ReadingCard({ book, onNavigate }) {
   );
 }
 
-/* ── Main ───────────────────────────────────────────────────────── */
 export default function ProfilePage({ handleNavigate, handleLogout, currentUser, isLoggedIn, openAuthModal }) {
-  const [stats, setStats]           = useState(null);
-  const [goal, setGoal]             = useState(null);
-  const [reading, setReading]       = useState([]);
-  const [profile, setProfile]       = useState(null);
-  const [editingGoal, setEditingGoal] = useState(false);
-  const [tempGoal, setTempGoal]     = useState('');
-  const [modal, setModal]           = useState(null);
+  const [stats, setStats] = useState(null);
+  const [reading, setReading] = useState([]);
+  const [profile, setProfile] = useState(null);
+  const [modal, setModal] = useState(null);
 
   const tok = () => localStorage.getItem('token');
 
   const fetchAll = useCallback(async () => {
     if (!currentUser) return;
     const h = { Authorization:`Bearer ${tok()}` };
-    const [sR, gR, pR, bR] = await Promise.allSettled([
+    const [sR, pR, bR] = await Promise.allSettled([
       fetch(`${API_URL}/me/stats`,  { headers:h }),
-      fetch(`${API_URL}/me/goals`,  { headers:h }),
       fetch(`${API_URL}/profile`,   { headers:h }),
       fetch(`${API_URL}/me/books`,  { headers:h }),
     ]);
     if (sR.status==='fulfilled' && sR.value.ok) setStats(await sR.value.json());
-    if (gR.status==='fulfilled' && gR.value.ok) setGoal(await gR.value.json());
     if (pR.status==='fulfilled' && pR.value.ok) setProfile(await pR.value.json());
     if (bR.status==='fulfilled' && bR.value.ok) {
       const books = await bR.value.json();
@@ -269,19 +256,6 @@ export default function ProfilePage({ handleNavigate, handleLogout, currentUser,
   }, [currentUser]);
 
   useEffect(() => { if (currentUser) fetchAll(); }, [currentUser, fetchAll]);
-
-  const saveGoal = async () => {
-    const target = parseInt(tempGoal);
-    if (isNaN(target) || target <= 0) { setEditingGoal(false); return; }
-    await fetch(`${API_URL}/me/goals`, {
-      method:'POST',
-      headers: { Authorization:`Bearer ${tok()}`, 'Content-Type':'application/json' },
-      body: JSON.stringify({ target_books:target, goal_year:new Date().getFullYear() }),
-    });
-    setEditingGoal(false);
-    fetchAll();
-    toast.success('Ціль збережено!');
-  };
 
   if (!currentUser) return (
     <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4">
@@ -293,16 +267,11 @@ export default function ProfilePage({ handleNavigate, handleLogout, currentUser,
   );
 
   const booksRead = stats?.books_read || 0;
-  console.log("Stats object from backend:", stats);
-  const targetBooks = goal?.target_books || 0;
-  const goalPct     = targetBooks > 0 ? Math.min(100, Math.round((booksRead / targetBooks) * 100)) : 0;
-  const followers   = profile?.followers_count ?? stats?.followers_count ?? 0;
-  const following   = profile?.following_count  ?? stats?.following_count  ?? 0;
+  const followers = profile?.followers_count ?? stats?.followers_count ?? 0;
+  const following = profile?.following_count ?? stats?.following_count ?? 0;
 
   return (
     <main className="max-w-2xl mx-auto px-4 py-6 pb-10 page-enter space-y-5">
-
-      {/* Avatar + name */}
       <section className="flex flex-col items-center text-center gap-3 pt-2">
         <div className="w-20 h-20 rounded-full overflow-hidden flex items-center justify-center text-2xl font-bold text-white shadow-lg"
           style={{ background: currentUser.avatar_url ? 'transparent' : 'var(--c-primary)' }}>
@@ -315,11 +284,10 @@ export default function ProfilePage({ handleNavigate, handleLogout, currentUser,
           {profile?.bio && <p className="text-sm mt-1 max-w-xs break-words" style={{ color:'var(--c-text-2)' }}>{profile.bio}</p>}
         </div>
 
-        {/* Stats row */}
         <div className="flex rounded-2xl overflow-hidden w-full max-w-xs" style={{ border:'1px solid var(--c-border)' }}>
           {[
             { v:followers, l:'Підписники', action:() => setModal('followers') },
-            { v:following, l:'Підписки',   action:() => setModal('following') },
+            { v:following, l:'Підписки',  action:() => setModal('following') },
             { v:booksRead, l:'Прочитано',  action:null },
           ].map((s,i) => (
             <React.Fragment key={i}>
@@ -333,9 +301,7 @@ export default function ProfilePage({ handleNavigate, handleLogout, currentUser,
           ))}
         </div>
 
-        {/* Actions Container */}
         <div className="flex flex-col gap-2 w-full max-w-xs">
-          {/* Відображається тільки якщо роль користувача 'admin' */}
           {currentUser?.role === 'admin' && (
             <button onClick={() => handleNavigate('admin')}
               className="w-full flex items-center justify-center gap-2 py-2.5 rounded-2xl text-sm font-bold transition-colors text-white hover:opacity-90 shadow-sm"
@@ -359,7 +325,6 @@ export default function ProfilePage({ handleNavigate, handleLogout, currentUser,
         </div>
       </section>
 
-      {/* Читаю зараз */}
       {reading.length > 0 && (
         <section>
           <h3 className="font-bold text-sm mb-3">Читаю зараз</h3>
@@ -368,43 +333,6 @@ export default function ProfilePage({ handleNavigate, handleLogout, currentUser,
           </div>
         </section>
       )}
-
-      {/* Читацький виклик */}
-      <section className="rounded-3xl p-5" style={{ background:'var(--c-surface)', border:'1px solid var(--c-border)' }}>
-        <div className="flex items-center justify-between mb-3">
-          <div className="flex items-center gap-2">
-            <Target className="w-4 h-4" style={{ color:'var(--c-primary)' }} />
-            <h3 className="font-bold text-sm">Виклик {new Date().getFullYear()}</h3>
-          </div>
-          {editingGoal ? (
-            <div className="flex items-center gap-2">
-              <input type="number" autoFocus value={tempGoal} onChange={e=>setTempGoal(e.target.value)}
-                onKeyDown={e=>e.key==='Enter'&&saveGoal()}
-                placeholder="К-сть" className="w-20 px-2 py-1 text-center rounded-xl text-sm font-bold outline-none"
-                style={{ border:'1px solid var(--c-primary)', color:'var(--c-primary)', background:'var(--c-primary-muted)' }} />
-              <button onClick={saveGoal} className="w-7 h-7 rounded-xl flex items-center justify-center text-white" style={{ background:'var(--c-primary)' }}>
-                <Check className="w-3.5 h-3.5" />
-              </button>
-            </div>
-          ) : (
-            <button onClick={() => { setTempGoal(targetBooks||''); setEditingGoal(true); }}
-              className="flex items-center gap-1 text-xs font-bold px-3 py-1.5 rounded-xl"
-              style={{ color:'var(--c-text-2)', border:'1px solid var(--c-border)' }}>
-              <Edit2 className="w-3 h-3" /> Змінити
-            </button>
-          )}
-        </div>
-        {targetBooks > 0 ? (
-          <>
-            <p className="text-xs mb-2" style={{ color:'var(--c-text-3)' }}>{booksRead} з {targetBooks} книг · {goalPct}%</p>
-            <div className="w-full h-2.5 rounded-full overflow-hidden" style={{ background:'var(--c-bg)' }}>
-              <div className="h-full rounded-full transition-all duration-500" style={{ width:`${goalPct}%`, background:'var(--c-primary)' }} />
-            </div>
-          </>
-        ) : (
-          <p className="text-sm" style={{ color:'var(--c-text-3)' }}>Поставте ціль на рік 📚</p>
-        )}
-      </section>
 
       {modal && <ConnectionsModal type={modal} userId={currentUser.id} onClose={() => setModal(null)} handleNavigate={handleNavigate} />}
     </main>
