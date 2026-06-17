@@ -98,8 +98,9 @@ func (r *BookRepository) GetAll(ctx context.Context, f models.BookFilters) ([]mo
 	// Сортування
 	switch f.Sort {
 	case "newest":
-		query = strings.Replace(query, "DISTINCT ON (w.id)", "DISTINCT ON (w.created_at, w.id)", 1)
-		query += ` ORDER BY w.created_at DESC, w.id`
+		// Сортуємо за датою видання книги (e.publication_date), а не за датою додавання в БД (w.created_at)
+		query = strings.Replace(query, "DISTINCT ON (w.id)", "DISTINCT ON (e.publication_date, w.id)", 1)
+		query += ` ORDER BY e.publication_date DESC NULLS LAST, w.id`
 	case "popular":
 		// МАГІЯ ТУТ: Рахуємо кількість людей, які зараз читають цю книгу (статус 'reading')
 		query = strings.Replace(query, "DISTINCT ON (w.id)", "DISTINCT ON ((SELECT COUNT(*) FROM user_editions WHERE work_id = w.id AND status = 'reading'), w.id)", 1)
@@ -116,8 +117,9 @@ func (r *BookRepository) GetAll(ctx context.Context, f models.BookFilters) ([]mo
 	case "random":
 		query += ` ORDER BY w.id, RANDOM()`
 	default:
-		query = strings.Replace(query, "DISTINCT ON (w.id)", "DISTINCT ON (w.created_at, w.id)", 1)
-		query += ` ORDER BY w.created_at DESC, w.id`
+		// За замовчуванням — найновіші за датою видання
+		query = strings.Replace(query, "DISTINCT ON (w.id)", "DISTINCT ON (e.publication_date, w.id)", 1)
+		query += ` ORDER BY e.publication_date DESC NULLS LAST, w.id`
 	}
 
 	limit := 60
@@ -207,7 +209,6 @@ func (r *BookRepository) GetByIDWithDetails(ctx context.Context, id string, user
 		b.Authors = []string{}
 	}
 
-	// Статус користувача — використовуємо work_id напряму (не через edition_id)
 	// Статус користувача — використовуємо work_id напряму (не через edition_id)
 	if userID != "" {
 		var status string
@@ -554,19 +555,22 @@ func (r *BookRepository) GetTrending(ctx context.Context, limit int) ([]models.B
 }
 
 func (r *BookRepository) GetNewest(ctx context.Context, limit int) ([]models.Book, error) {
-	rows, err := r.db.Query(ctx, `
-		SELECT DISTINCT ON (w.id)
+	query := `
+		SELECT DISTINCT ON (e.publication_date, w.id)
 			w.id::text, w.title,
-			COALESCE(a.name,'Невідомий автор'),
-			COALESCE(e.cover_url,''),
-			COALESCE(g.name,'')
+			COALESCE(a.name, 'Невідомий автор'),
+			COALESCE(e.cover_url, ''),
+			COALESCE(g.name, '')
 		FROM works w
-		LEFT JOIN authors a ON w.author_id=a.id
-		LEFT JOIN editions e ON w.id=e.work_id
-		LEFT JOIN work_genres wg ON w.id=wg.work_id
-		LEFT JOIN genres g ON wg.genre_id=g.id
-		ORDER BY w.id, w.created_at DESC
-		LIMIT $1`, limit)
+		LEFT JOIN authors a ON w.author_id = a.id
+		LEFT JOIN editions e ON w.id = e.work_id
+		LEFT JOIN work_genres wg ON w.id = wg.work_id
+		LEFT JOIN genres g ON wg.genre_id = g.id
+		WHERE e.publication_date IS NOT NULL 
+		ORDER BY e.publication_date DESC NULLS LAST, w.id
+		LIMIT $1`
+
+	rows, err := r.db.Query(ctx, query, limit)
 	if err != nil {
 		return nil, err
 	}
@@ -1206,4 +1210,98 @@ func (r *BookRepository) SearchGenres(ctx context.Context, query string) ([]stri
 		genres = []string{}
 	}
 	return genres, nil
+}
+
+// CountAll рахує загальну кількість книг за поточними фільтрами (для пагінації)
+func (r *BookRepository) CountAll(ctx context.Context, f models.BookFilters) (int, error) {
+	query := `
+		SELECT COUNT(DISTINCT w.id)
+		FROM works w
+		LEFT JOIN authors a ON w.author_id = a.id
+		LEFT JOIN editions e ON w.id = e.work_id
+		LEFT JOIN work_genres wg ON w.id = wg.work_id
+		LEFT JOIN genres g ON wg.genre_id = g.id
+		LEFT JOIN languages l ON e.language_id = l.id
+		WHERE 1=1`
+
+	var args []any
+	n := 1
+
+	if f.Search != "" {
+		query += ` AND (w.title ILIKE $` + strconv.Itoa(n) + ` OR a.name ILIKE $` + strconv.Itoa(n) + `)`
+		args = append(args, "%"+f.Search+"%")
+		n++
+	}
+	if len(f.Genres) > 0 {
+		query += ` AND g.name = ANY($` + strconv.Itoa(n) + `)`
+		args = append(args, f.Genres)
+		n++
+	}
+	if len(f.Languages) > 0 {
+		query += ` AND l.name = ANY($` + strconv.Itoa(n) + `)`
+		args = append(args, f.Languages)
+		n++
+	}
+	if len(f.Publishers) > 0 {
+		query += ` AND e.publisher = ANY($` + strconv.Itoa(n) + `)`
+		args = append(args, f.Publishers)
+		n++
+	}
+	if f.YearFrom != "" {
+		query += ` AND EXTRACT(YEAR FROM e.publication_date)::int >= $` + strconv.Itoa(n)
+		args = append(args, f.YearFrom)
+		n++
+	}
+	if f.YearTo != "" {
+		query += ` AND EXTRACT(YEAR FROM e.publication_date)::int <= $` + strconv.Itoa(n)
+		args = append(args, f.YearTo)
+		n++
+	}
+	if f.PageCountMin > 0 {
+		query += ` AND e.page_count >= $` + strconv.Itoa(n)
+		args = append(args, f.PageCountMin)
+		n++
+	}
+	if f.PageCountMax > 0 {
+		query += ` AND e.page_count <= $` + strconv.Itoa(n)
+		args = append(args, f.PageCountMax)
+		n++
+	}
+	if f.RatingMin != "" {
+		query += ` AND w.average_rating >= $` + strconv.Itoa(n)
+		args = append(args, f.RatingMin)
+		n++
+	}
+	if f.Author != "" {
+		query += ` AND a.name ILIKE $` + strconv.Itoa(n)
+		args = append(args, "%"+f.Author+"%")
+		n++
+	}
+
+	var total int
+	err := r.db.QueryRow(ctx, query, args...).Scan(&total)
+	return total, err
+}
+
+// SearchPublishers шукає унікальні видавництва за частковим збігом
+func (r *BookRepository) SearchPublishers(ctx context.Context, query string) ([]string, error) {
+	q := `SELECT DISTINCT publisher FROM editions WHERE publisher ILIKE $1 AND publisher != '' ORDER BY publisher ASC LIMIT 10`
+	rows, err := r.db.Query(ctx, q, "%"+query+"%")
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var pubs []string
+	for rows.Next() {
+		var name string
+		if err := rows.Scan(&name); err == nil {
+			pubs = append(pubs, name)
+		}
+	}
+
+	if pubs == nil {
+		pubs = []string{}
+	}
+	return pubs, nil
 }
