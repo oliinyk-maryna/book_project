@@ -246,6 +246,11 @@ func NewRouter(db *pgxpool.Pool) http.Handler {
 	mux.HandleFunc("POST /api/auth/reset-password", authHandler.ResetPassword)
 
 	mux.HandleFunc("GET /api/genres/search", bookHandler.SearchGenres)
+	mux.HandleFunc("GET /api/publishers/search", bookHandler.SearchPublishers)
+	// 1. РОЗДАЧА СТАТИЧНИХ ФАЙЛІВ (щоб картинки відкривались у браузері)
+
+	mux.HandleFunc("POST /api/admin/upload", middleware.Auth(middleware.AdminOnly(adminHandler.UploadImage)))
+	mux.HandleFunc("POST /api/admin/upload-url", middleware.Auth(middleware.AdminOnly(adminHandler.UploadImageFromURL)))
 
 	return middleware.CORS(mux)
 
