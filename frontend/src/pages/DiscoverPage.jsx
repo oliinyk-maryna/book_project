@@ -1,20 +1,18 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { Search, Check, X, SlidersHorizontal, Star, ChevronDown, Loader2 } from 'lucide-react';
+import { Search, Check, X, SlidersHorizontal, Star, ChevronDown, ChevronLeft, ChevronRight } from 'lucide-react';
 import { createPortal } from 'react-dom';
 import { API_URL } from '../config';
 
-/* ── ДОПОМІЖНІ ФУНКЦІЇ ─────────────────────────────────────────── */
 function getAuthorsString(book) {
   if (book.authors?.length > 0) return book.authors.join(', ');
   if (book.author) return book.author;
   return 'Невідомий автор';
 }
 
-/* ── КАРТКА КНИГИ В КАТАЛОЗІ ───────────────────────────────────── */
 function BookGridCard({ book, onClick }) {
   return (
-    <div 
-      className="group flex flex-col cursor-pointer h-full p-3 rounded-2xl transition-all duration-300 hover:-translate-y-1" 
+    <div
+      className="group flex flex-col cursor-pointer h-full p-3 rounded-2xl transition-all duration-300 hover:-translate-y-1"
       style={{ background: 'var(--c-surface)', border: '1px solid var(--c-border)', boxShadow: '0 4px 12px rgba(42, 36, 29, 0.02)' }}
       onClick={() => onClick('book', book.id)}
     >
@@ -37,18 +35,16 @@ function BookGridCard({ book, onClick }) {
   );
 }
 
-/* ── СКЕЛЕТОН (ЗАВАНТАЖЕННЯ) ───────────────────────────────────── */
 function SkeletonCard() {
   return (
     <div className="animate-pulse flex flex-col h-full p-3 rounded-2xl" style={{ background: 'var(--c-surface)', border: '1px solid var(--c-border)' }}>
-      <div className="aspect-[2/3] rounded-xl mb-3" style={{ background: 'var(--c-bg)' }} />
-      <div className="h-3 rounded mb-2 w-4/5" style={{ background: 'var(--c-bg)' }} />
+      <div className="aspect-[2/3] rounded-xl mb-3" style={{ background: 'var(--bg)' }} />
+      <div className="h-3 rounded mb-2 w-4/5" style={{ background: 'var(--bg)' }} />
       <div className="h-2.5 rounded w-3/5" style={{ background: 'var(--c-border-2)' }} />
     </div>
   );
 }
 
-/* ── АВТОКОМПЛІТ АВТОРІВ ───────────────────────────────────────── */
 function AuthorSearch({ value, onChange }) {
   const [suggestions, setSuggestions] = useState([]);
   const [show, setShow] = useState(false);
@@ -68,13 +64,13 @@ function AuthorSearch({ value, onChange }) {
 
   return (
     <div className="relative">
-      <input 
-        value={value} 
+      <input
+        value={value}
         onChange={e => handleInput(e.target.value)}
-        onFocus={() => setShow(true)} 
+        onFocus={() => setShow(true)}
         onBlur={() => setTimeout(() => setShow(false), 200)}
         placeholder="Пошук за автором..."
-        className="w-full rounded-xl p-3 text-sm outline-none transition-all font-medium" 
+        className="w-full rounded-xl p-3 text-sm outline-none transition-all font-medium"
         style={{ background: 'var(--c-bg)', border: '1px solid var(--c-border)', color: 'var(--c-text)' }}
       />
       {show && suggestions.length > 0 && (
@@ -90,7 +86,6 @@ function AuthorSearch({ value, onChange }) {
   );
 }
 
-/* ── КОНСТАНТИ ФІЛЬТРІВ ────────────────────────────────────────── */
 const SORT_OPTIONS = [
   { value: '',         label: 'За замовчуванням' },
   { value: 'newest',   label: 'Найновіші надходження' },
@@ -107,101 +102,127 @@ const PAGE_RANGES = [
   { label: 'Товсті романи (400+ ст.)', min: 400, max: 0 },
 ];
 
-/* ── ГОЛОВНИЙ КОМПОНЕНТ ────────────────────────────────────────── */
+/* ── ЛОГІКА ПАГІНАЦІЇ (Генерація сторінок з "...") ────────────────── */
+const getPageNumbers = (current, total) => {
+  if (total <= 7) return Array.from({ length: total }, (_, i) => i + 1);
+  if (current <= 4) return [1, 2, 3, 4, 5, '...', total];
+  if (current >= total - 3) return [1, '...', total - 4, total - 3, total - 2, total - 1, total];
+  return [1, '...', current - 1, current, current + 1, '...', total];
+};
+
 export default function DiscoverPage({ handleNavigate }) {
   const [books, setBooks] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [isLoadingMore, setIsLoadingMore] = useState(false);
-  const [hasMore, setHasMore] = useState(true);
   const [filterOpts, setFilterOpts] = useState({ categories: [], publishers: [], languages: [] });
-  
   const [showMobileFilters, setShowMobileFilters] = useState(false);
 
-  // Стан фільтрів
+  // Фільтри та пошук
   const [searchQuery, setSearchQuery] = useState('');
   const [authorQuery, setAuthorQuery] = useState('');
   const [selectedCats, setSelectedCats] = useState([]);
   const [selectedLangs, setSelectedLangs] = useState([]);
   const [selectedPubs, setSelectedPubs] = useState([]);
-  const [pageRange, setPageRange] = useState(0); 
+  const [pageRange, setPageRange] = useState(0);
   const [ratingMin, setRatingMin] = useState(0);
   const [sortBy, setSortBy] = useState('');
-  const [offset, setOffset] = useState(0);
+  
+  // Стейт пагінації
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalCount, setTotalCount] = useState(0); // Загальна кількість книг в базі
 
-  const LIMIT = 24;
+  const LIMIT = 16;
   const searchTimer = useRef(null);
-  const observerRef = useRef(null);
-  const bottomRef = useRef(null);
+  const isFirstMount = useRef(true);
 
-  const buildParams = useCallback((extra = {}) => {
+  const buildParams = useCallback((pageNumber) => {
     const p = new URLSearchParams();
     if (searchQuery) p.append('search', searchQuery);
     if (authorQuery) p.append('author', authorQuery);
     selectedCats.forEach(c => p.append('genres', c));
     selectedLangs.forEach(l => p.append('languages', l));
     selectedPubs.forEach(v => p.append('publishers', v));
+    
     const pr = PAGE_RANGES[pageRange];
     if (pr.min) p.append('page_min', pr.min);
     if (pr.max) p.append('page_max', pr.max);
     if (ratingMin > 0) p.append('rating_min', ratingMin);
     if (sortBy) p.append('sort', sortBy);
+    
     p.append('limit', LIMIT);
-    p.append('offset', extra.offset ?? 0);
+    p.append('offset', (pageNumber - 1) * LIMIT);
     return p.toString();
   }, [searchQuery, authorQuery, selectedCats, selectedLangs, selectedPubs, pageRange, ratingMin, sortBy]);
 
-  const fetchBooks = useCallback(async (off = 0, append = false) => {
-    if (append) setIsLoadingMore(true); else setIsLoading(true);
+ const fetchBooks = useCallback(async (page = 1) => {
+    setIsLoading(true);
     try {
-      const res = await fetch(`${API_URL}/books?${buildParams({ offset: off })}`);
-      const data = (await res.json()) || [];
-      if (append) setBooks(prev => [...prev, ...data]); else setBooks(data);
-      setHasMore(data.length === LIMIT);
-      setOffset(off + data.length);
-    } catch {
-      if (!append) setBooks([]);
+      const res = await fetch(`${API_URL}/books?${buildParams(page)}`);
+      
+      // Відловлюємо помилки сервера
+      if (!res.ok) throw new Error(`Помилка сервера: ${res.status}`);
+      
+      const json = await res.json();
+      
+      let fetchedBooks = [];
+      let fetchedTotal = 0;
+
+      // Жорстко перевіряємо формат даних, щоб уникнути помилки .map
+      if (json && Array.isArray(json.data)) {
+        fetchedBooks = json.data;
+        fetchedTotal = typeof json.total === 'number' ? json.total : fetchedBooks.length;
+      } else if (Array.isArray(json)) {
+        fetchedBooks = json;
+        fetchedTotal = fetchedBooks.length === LIMIT ? page * LIMIT + 1 : (page - 1) * LIMIT + fetchedBooks.length;
+      }
+
+      setBooks(fetchedBooks);
+      setTotalCount(fetchedTotal);
+      setCurrentPage(page);
+      
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    } catch (error) {
+      console.error("Помилка завантаження книг:", error);
+      // Гарантовано передаємо порожній масив у разі збою
+      setBooks([]);
+      setTotalCount(0);
     } finally {
-      setIsLoading(false); setIsLoadingMore(false);
+      setIsLoading(false);
     }
   }, [buildParams]);
 
-  // Нескінченний скрол
   useEffect(() => {
-    if (observerRef.current) observerRef.current.disconnect();
-    observerRef.current = new IntersectionObserver(entries => {
-      if (entries[0].isIntersecting && hasMore && !isLoadingMore && !isLoading) fetchBooks(offset, true);
-    }, { threshold: 0.1 });
-    if (bottomRef.current) observerRef.current.observe(bottomRef.current);
-    return () => observerRef.current?.disconnect();
-  }, [hasMore, isLoadingMore, isLoading, offset, fetchBooks]);
-
-  // Дебаунс для пошуку
-  useEffect(() => {
+    if (isFirstMount.current) {
+      isFirstMount.current = false;
+      return;
+    }
     clearTimeout(searchTimer.current);
-    searchTimer.current = setTimeout(() => { setOffset(0); fetchBooks(0, false); }, 400);
+    searchTimer.current = setTimeout(() => { fetchBooks(1); }, 400);
     return () => clearTimeout(searchTimer.current);
-  }, [searchQuery]);
+  }, [searchQuery, fetchBooks]);
 
-  // Завантаження опцій фільтрів
   useEffect(() => {
     fetch(`${API_URL}/filters`)
       .then(r => r.json())
       .then(d => setFilterOpts({ categories: d?.categories || [], publishers: d?.publishers || [], languages: d?.languages || [] }))
       .catch(() => {});
-    fetchBooks(0, false);
+    fetchBooks(1);
   }, []);
 
-  const applyFilters = () => { setShowMobileFilters(false); setOffset(0); fetchBooks(0, false); };
+  const applyFilters = () => { setShowMobileFilters(false); fetchBooks(1); };
+  
   const resetFilters = () => {
     setSelectedCats([]); setSelectedLangs([]); setSelectedPubs([]);
-    setPageRange(0); setRatingMin(0); setSortBy(''); setAuthorQuery(''); setSearchQuery(''); setOffset(0);
-    setTimeout(() => fetchBooks(0, false), 50);
+    setPageRange(0); setRatingMin(0); setSortBy(''); setAuthorQuery(''); setSearchQuery('');
+    setTimeout(() => fetchBooks(1), 50);
   };
 
   const toggle = (arr, setArr, val) => setArr(arr.includes(val) ? arr.filter(x => x !== val) : [...arr, val]);
   const activeCount = selectedCats.length + selectedLangs.length + selectedPubs.length + (pageRange > 0 ? 1 : 0) + (ratingMin > 0 ? 1 : 0) + (authorQuery ? 1 : 0);
 
-  /* ── БЛОК ФІЛЬТРІВ (Десктоп + Мобілка) ───────────────────────── */
+  // Розрахунок сторінок для рендеру
+  const totalPages = Math.max(1, Math.ceil(totalCount / LIMIT));
+  const pagesToRender = getPageNumbers(currentPage, totalPages);
+
   const FilterContent = () => (
     <div className="space-y-7">
       <div>
@@ -283,7 +304,6 @@ export default function DiscoverPage({ handleNavigate }) {
         </div>
       )}
 
-      {/* Кнопки (тільки для десктопу) */}
       <div className="hidden lg:flex flex-col gap-2 pt-6 border-t" style={{ borderColor: 'var(--c-border)' }}>
         <button onClick={applyFilters} className="w-full py-3.5 rounded-xl text-sm font-bold uppercase tracking-wider text-white transition-all hover:opacity-90 active:scale-95 shadow-md" style={{ background: 'var(--c-primary)' }}>Застосувати</button>
         {activeCount > 0 && <button onClick={resetFilters} className="w-full py-2 text-sm font-bold transition-colors hover:underline" style={{ color: 'var(--c-text-3)' }}>Скинути всі {activeCount} фільтрів</button>}
@@ -294,17 +314,14 @@ export default function DiscoverPage({ handleNavigate }) {
   return (
     <>
       <main className="max-w-7xl mx-auto px-4 mt-6 md:mt-8 pb-28 md:pb-12 page-enter">
-        
-        {/* ── ШАПКА ТА ПОШУК ──────────────────────────────────────────── */}
         <div className="mb-6 md:mb-8 pb-5 md:pb-6 border-b" style={{ borderColor: 'var(--c-border)' }}>
           <h1 className="text-3xl md:text-4xl font-serif font-black mb-4 md:mb-6 tracking-tight" style={{ color: 'var(--c-text)' }}>Бібліотечний каталог</h1>
           
           <div className="flex flex-col sm:flex-row gap-3 md:gap-4 max-w-4xl">
-
             <div className="flex gap-3">
               <div className="relative flex-1 sm:flex-none sm:w-56">
-                <select 
-                  value={sortBy} onChange={e => { setSortBy(e.target.value); setOffset(0); setTimeout(() => fetchBooks(0, false), 50); }}
+                <select
+                  value={sortBy} onChange={e => { setSortBy(e.target.value); setTimeout(() => fetchBooks(1), 50); }}
                   className="w-full appearance-none rounded-2xl py-3.5 pl-4 pr-10 text-sm outline-none cursor-pointer shadow-sm font-bold transition-all"
                   style={{ background: 'var(--c-surface)', border: '1px solid var(--c-border)', color: 'var(--c-text)' }}
                 >
@@ -321,19 +338,17 @@ export default function DiscoverPage({ handleNavigate }) {
         </div>
 
         <div className="flex flex-col lg:flex-row gap-8 lg:gap-10">
-
-          {/* ── ФІЛЬТРИ ДЕСКТОП ────────────────────────────────────────── */}
           <aside className="hidden lg:block w-64 shrink-0">
             {FilterContent()}
           </aside>
 
-          {/* ── СПИСОК КНИГ ────────────────────────────────────────────── */}
           <div className="flex-1 min-w-0">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6">
+              {/* Оновлений рядок знайдених книг */}
               <span className="text-sm font-bold" style={{ color: 'var(--c-text-3)' }}>
-                {isLoading ? 'Шукаємо твори...' : `Знайдено видань: ${books.length}${hasMore ? '+' : ''}`}
+                {isLoading ? 'Шукаємо твори...' : `Знайдено книг: ${totalCount}`}
               </span>
-              {/* Активні фільтри */}
+              
               {activeCount > 0 && (
                 <div className="flex flex-wrap gap-2">
                   {[...selectedCats, ...selectedPubs, ...selectedLangs].slice(0, 3).map(c => (
@@ -363,18 +378,55 @@ export default function DiscoverPage({ handleNavigate }) {
                   {books.map(book => <BookGridCard key={book.id} book={book} onClick={handleNavigate} />)}
                 </div>
 
-                {/* Індикатор нескінченного скролу */}
-                <div ref={bottomRef} className="h-24 flex flex-col items-center justify-center mt-6">
-                  {isLoadingMore && <Loader2 className="w-6 h-6 animate-spin" style={{ color: 'var(--c-primary)' }} />}
-                  {!hasMore && books.length > 0 && <p className="text-[11px] font-bold uppercase tracking-widest mt-4" style={{ color: 'var(--c-text-3)' }}>Ви переглянули всі результати</p>}
-                </div>
+                {/* Естетичний блок пагінації зі сторінками */}
+                {totalPages > 1 && (
+                  <div className="flex items-center justify-center gap-2 mt-16 pt-8 border-t animate-in fade-in duration-300" style={{ borderColor: 'var(--c-border)' }}>
+                    <button
+                      disabled={currentPage === 1}
+                      onClick={() => fetchBooks(currentPage - 1)}
+                      className="flex items-center justify-center w-10 h-10 rounded-xl border transition-all disabled:opacity-30 disabled:pointer-events-none hover:bg-[var(--c-surface-2)] active:scale-95 shadow-sm"
+                      style={{ background: 'var(--c-surface)', borderColor: 'var(--c-border)', color: 'var(--c-text)' }}
+                    >
+                      <ChevronLeft className="w-4 h-4" />
+                    </button>
+                    
+                    <div className="flex items-center gap-1 mx-2">
+                      {pagesToRender.map((p, idx) => (
+                        p === '...' ? (
+                          <span key={`ellipsis-${idx}`} className="px-2 font-bold" style={{ color: 'var(--c-text-3)' }}>...</span>
+                        ) : (
+                          <button
+                            key={p}
+                            onClick={() => fetchBooks(p)}
+                            className={`w-10 h-10 rounded-xl text-sm font-bold transition-all ${currentPage === p ? 'shadow-md' : 'hover:bg-[var(--c-surface-2)]'}`}
+                            style={{ 
+                              background: currentPage === p ? 'var(--c-primary)' : 'var(--c-surface)', 
+                              color: currentPage === p ? 'white' : 'var(--c-text)',
+                              border: `1px solid ${currentPage === p ? 'transparent' : 'var(--c-border)'}` 
+                            }}
+                          >
+                            {p}
+                          </button>
+                        )
+                      ))}
+                    </div>
+
+                    <button
+                      disabled={currentPage >= totalPages}
+                      onClick={() => fetchBooks(currentPage + 1)}
+                      className="flex items-center justify-center w-10 h-10 rounded-xl border transition-all disabled:opacity-30 disabled:pointer-events-none hover:bg-[var(--c-surface-2)] active:scale-95 shadow-sm"
+                      style={{ background: 'var(--c-surface)', borderColor: 'var(--c-border)', color: 'var(--c-text)' }}
+                    >
+                      <ChevronRight className="w-4 h-4" />
+                    </button>
+                  </div>
+                )}
               </>
             )}
           </div>
         </div>
       </main>
 
-      {/* ── ФІЛЬТРИ МОБІЛЬНІ (Рендеримо через Portal у самому корені компонента) ── */}
       {showMobileFilters && createPortal(
         <div className="fixed inset-0 z-[60] lg:hidden flex flex-col justify-end animate-in fade-in duration-200">
           <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setShowMobileFilters(false)} />
