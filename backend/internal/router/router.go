@@ -245,6 +245,8 @@ func NewRouter(db *pgxpool.Pool) http.Handler {
 	mux.HandleFunc("POST /api/auth/verify-code", authHandler.VerifyResetCode)
 	mux.HandleFunc("POST /api/auth/reset-password", authHandler.ResetPassword)
 
+	mux.HandleFunc("GET /api/genres/search", bookHandler.SearchGenres)
+
 	return middleware.CORS(mux)
 
 }

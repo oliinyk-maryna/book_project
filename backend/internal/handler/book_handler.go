@@ -351,3 +351,24 @@ func (h *BookHandler) UpdateReview(w http.ResponseWriter, r *http.Request) {
 	}
 	w.WriteHeader(http.StatusOK)
 }
+
+// GET /api/genres/search?q=...
+func (h *BookHandler) SearchGenres(w http.ResponseWriter, r *http.Request) {
+	query := r.URL.Query().Get("q")
+
+	// Якщо ввели менше 2 символів, повертаємо порожній масив (щоб не вантажити базу)
+	if len(query) < 2 {
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode([]string{})
+		return
+	}
+
+	genres, err := h.bookService.SearchGenres(r.Context(), query)
+	if err != nil {
+		http.Error(w, "Помилка пошуку жанрів: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(genres)
+}

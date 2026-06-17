@@ -126,3 +126,7 @@ func (s *BookService) UpdateReview(ctx context.Context, reviewID, userID, text s
 	}
 	return s.repo.UpdateReview(ctx, reviewID, userID, text, hasSpoiler)
 }
+
+func (s *BookService) SearchGenres(ctx context.Context, query string) ([]string, error) {
+	return s.repo.SearchGenres(ctx, query) // Замініть s.repo на те, як у вас називається змінна репозиторію
+}

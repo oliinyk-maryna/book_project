@@ -1179,3 +1179,31 @@ func (r *BookRepository) AdminForceDeleteClub(ctx context.Context, clubID string
 	_, err := r.db.Exec(ctx, "DELETE FROM groups WHERE id = $1::uuid", clubID)
 	return err
 }
+
+// SearchGenres шукає жанри за частковим збігом (динамічний пошук)
+func (r *BookRepository) SearchGenres(ctx context.Context, query string) ([]string, error) {
+	// Шукаємо до 10 збігів без чутливості до регістру (ILIKE)
+	q := `SELECT name FROM genres WHERE name ILIKE $1 ORDER BY name ASC LIMIT 10`
+	rows, err := r.db.Query(ctx, q, "%"+query+"%")
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var genres []string
+	for rows.Next() {
+		var name string
+		if err := rows.Scan(&name); err != nil {
+			return nil, err
+		}
+		genres = append(genres, name)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	if genres == nil {
+		genres = []string{}
+	}
+	return genres, nil
+}

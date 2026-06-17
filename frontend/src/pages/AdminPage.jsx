@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   BookOpen, Users, Shield, Activity, Star, Users2,
   Trash2, Edit2, Plus, Loader2, RefreshCw, X,
@@ -94,6 +94,137 @@ function FormField({ label, value, onChange, type = 'text', placeholder, ...rest
   );
 }
 
+/* ── КОМПОНЕНТ ДЛЯ ДИНАМІЧНИХ ТЕГІВ (ASYNC AUTOCOMPLETE) ────────────────────── */
+function AsyncTagInput({ label, tags, onChange, placeholder, searchUrl, format = 'none' }) {
+  const [input, setInput] = useState('');
+  const [suggestions, setSuggestions] = useState([]);
+  const [isOpen, setIsOpen] = useState(false);
+  const timer = useRef(null);
+
+  const handleInput = (v) => {
+    setInput(v);
+    setIsOpen(true);
+    clearTimeout(timer.current);
+
+    // Шукаємо тільки якщо введено 2+ символи
+    if (v.trim().length < 2) {
+      setSuggestions([]);
+      return;
+    }
+
+    timer.current = setTimeout(async () => {
+      try {
+        const base = import.meta.env.VITE_API_URL || 'http://localhost:8080/api';
+        const res = await fetch(`${base}${searchUrl}${encodeURIComponent(v.trim())}`);
+        if (res.ok) {
+          const data = await res.json();
+          // Прибираємо з підказок ті теги, які вже обрані
+          setSuggestions((data || []).filter(opt => !tags.includes(opt)));
+        }
+      } catch (e) {
+        console.error("Помилка пошуку:", e);
+      }
+    }, 300); // Дебаунс 300мс, щоб не спамити сервер
+  };
+
+  const handleAddTag = (value) => {
+    let trimmed = value.trim();
+    if (!trimmed) return;
+
+    // ЗАСТОСОВУЄМО ФОРМАТУВАННЯ
+    if (format === 'sentence') {
+      // Для жанрів: "наукова фантастика" -> "Наукова фантастика"
+      trimmed = trimmed.charAt(0).toUpperCase() + trimmed.slice(1).toLowerCase();
+    } else if (format === 'title') {
+      // Для авторів: "джордж р. р. мартін" -> "Джордж Р. Р. Мартін"
+      trimmed = trimmed.split(/\s+/).map(word => {
+        if (!word) return '';
+        return word.charAt(0).toUpperCase() + word.slice(1).toLowerCase();
+      }).join(' ');
+    }
+
+    // Перевіряємо на дублікати без урахування регістру
+    const isDuplicate = tags.some(t => t.toLowerCase() === trimmed.toLowerCase());
+
+    if (!isDuplicate) {
+      onChange([...tags, trimmed]);
+    }
+    
+    setInput('');
+    setSuggestions([]);
+    setIsOpen(false);
+  };
+
+  const handleKeyDown = (e) => {
+    if (e.key === 'Enter' || e.key === ',') {
+      e.preventDefault();
+      handleAddTag(input);
+    }
+  };
+
+  const removeTag = (indexToRemove) => {
+    onChange(tags.filter((_, index) => index !== indexToRemove));
+  };
+
+  return (
+    <div className="w-full relative">
+      <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">{label}</label>
+      <div 
+        className="flex flex-wrap gap-2 p-2 min-h-[46px] border border-slate-200 rounded-xl focus-within:border-indigo-400 transition-colors bg-white items-center cursor-text"
+        onClick={() => setIsOpen(true)}
+      >
+        {tags.map((tag, index) => (
+          <span key={index} className="flex items-center gap-1.5 bg-indigo-50 border border-indigo-100 text-indigo-700 px-2.5 py-1 rounded-lg text-xs font-semibold z-10">
+            {tag}
+            <button 
+              type="button" 
+              onClick={(e) => { e.stopPropagation(); removeTag(index); }} 
+              className="text-indigo-400 hover:text-indigo-700 hover:bg-indigo-200 p-0.5 rounded transition-colors"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          </span>
+        ))}
+        <input
+          type="text"
+          value={input}
+          onChange={e => handleInput(e.target.value)}
+          onKeyDown={handleKeyDown}
+          onFocus={() => setIsOpen(true)}
+          onBlur={() => setTimeout(() => setIsOpen(false), 200)}
+          placeholder={tags.length === 0 ? placeholder : ''}
+          className="flex-1 min-w-[120px] bg-transparent outline-none text-sm px-2 py-0.5"
+        />
+      </div>
+      
+      {/* Випадаючий список з результатами */}
+      {isOpen && (suggestions.length > 0 || input.trim().length >= 2) && (
+        <div className="absolute z-50 w-full mt-1 bg-white border border-slate-200 rounded-xl shadow-xl max-h-48 overflow-y-auto custom-scrollbar">
+          {suggestions.map((opt, i) => (
+            <div 
+              key={i} 
+              onMouseDown={(e) => { e.preventDefault(); handleAddTag(opt); }}
+              className="px-4 py-2.5 text-sm text-slate-700 hover:bg-indigo-50 hover:text-indigo-700 cursor-pointer transition-colors"
+            >
+              {opt}
+            </div>
+          ))}
+          
+          {/* Можливість створити новий запис, якщо такого немає в базі */}
+          {input.trim() && !suggestions.some(o => o.toLowerCase() === input.trim().toLowerCase()) && (
+            <div 
+              onMouseDown={(e) => { e.preventDefault(); handleAddTag(input); }}
+              className="px-4 py-2.5 text-sm text-indigo-600 font-medium hover:bg-indigo-50 cursor-pointer flex items-center gap-2 border-t border-slate-100"
+            >
+              <Plus className="w-4 h-4" /> Створити «{input.trim()}»
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function BookModal({ book, onClose, onSaved }) {
   const safeString = (val) => {
     if (!val || val === 'Не вказано' || val === 'Невідомий автор') return '';
@@ -104,18 +235,21 @@ function BookModal({ book, onClose, onSaved }) {
     if (!d) return '';
     return d.split('T')[0];
   };
-  const safeArray = (arr, fallback) => {
-    if (Array.isArray(arr) && arr.length > 0) return arr.join(', ');
-    return safeString(fallback);
+  
+  // Допоміжна функція для отримання правильного масиву
+  const safeArrayFormat = (arr, fallback) => {
+    if (Array.isArray(arr) && arr.length > 0) return arr;
+    const str = safeString(fallback);
+    return str ? str.split(',').map(s => s.trim()).filter(Boolean) : [];
   };
 
   const [form, setForm] = useState({
     title:            safeString(book?.title ?? book?.Title),
-    author:           safeArray(book?.authors || book?.Authors, book?.author ?? book?.Author),
+    authors:          safeArrayFormat(book?.authors || book?.Authors, book?.author ?? book?.Author),
     cover_url:        safeString(book?.cover_url ?? book?.CoverURL),
     description:      safeString(book?.description ?? book?.Description),
     page_count:       book?.page_count || book?.PageCount || '',
-    genres:           safeArray(book?.genres || book?.Genres, book?.category ?? book?.Category),
+    genres:           safeArrayFormat(book?.genres || book?.Genres, book?.category ?? book?.Category),
     publication_date: safeDate(book?.publication_date ?? book?.PublicationDate ?? book?.PubDate),
     publisher:        safeString(book?.publisher ?? book?.Publisher),
   });
@@ -139,27 +273,24 @@ function BookModal({ book, onClose, onSaved }) {
 
   const save = async () => {
     if (!form.title.trim()) return toast.error('Назва обов\'язкова');
-    if (!form.author.trim()) return toast.error('Автор обов\'язковий');
+    if (form.authors.length === 0) return toast.error('Автор обов\'язковий'); 
     setSaving(true);
     
     try {
-      // 1. Очищаємо дату від "Не вказано", щоб не було 500-ї помилки
       let finalDate = form.publication_date || null;
       if (finalDate === 'Не вказано' || finalDate === '') finalDate = null;
 
-      // 2. Використовуємо стандартні snake_case ключі!
       const payload = {
         title: form.title.trim(),
-        authors: form.author.split(',').map(s => s.trim()).filter(Boolean),
+        authors: form.authors, 
         description: form.description.trim(),
         cover_url: form.cover_url.trim(),
         page_count: parseInt(form.page_count) || 0,
         publisher: form.publisher.trim(),
-        publication_date: finalDate, // передаємо очищену дату
-        genres: form.genres.split(',').map(s => s.trim()).filter(Boolean),
+        publication_date: finalDate,
+        genres: form.genres, 
       };
 
-      // 3. Зберігаємо
       if (isNew) {
         await adminApi.createBook(payload);
       } else {
@@ -212,8 +343,25 @@ function BookModal({ book, onClose, onSaved }) {
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <FormField label="Назва *" value={form.title} onChange={e => setForm(f => ({ ...f, title: e.target.value }))} />
-            <FormField label="Автор(и) *" value={form.author} onChange={e => setForm(f => ({ ...f, author: e.target.value }))} placeholder="через кому" />
-            <FormField label="Жанри" value={form.genres} onChange={e => setForm(f => ({ ...f, genres: e.target.value }))} placeholder="фентезі, роман, драма" />
+            
+            <AsyncTagInput 
+  label="Автор(и) *" 
+  tags={form.authors} 
+  onChange={newTags => setForm(f => ({ ...f, authors: newTags }))} 
+  placeholder="Стівен Кінг..." 
+  searchUrl="/authors/search?q="
+  format="title" 
+/>
+
+<AsyncTagInput 
+  label="Жанри" 
+  tags={form.genres} 
+  onChange={newTags => setForm(f => ({ ...f, genres: newTags }))} 
+  placeholder="Фентезі..." 
+  searchUrl="/genres/search?q="
+  format="sentence" 
+/>
+
             <FormField label="Кількість стор." value={form.page_count} onChange={e => setForm(f => ({ ...f, page_count: e.target.value }))} type="number" />
             <FormField label="Видавництво" value={form.publisher} onChange={e => setForm(f => ({ ...f, publisher: e.target.value }))} />
             <FormField label="Дата публікації" value={form.publication_date} onChange={e => setForm(f => ({ ...f, publication_date: e.target.value }))} type="date" />
@@ -244,7 +392,13 @@ function BookModal({ book, onClose, onSaved }) {
 
 /* ── Main AdminPage ───────────────────────────────────────────── */
 export default function AdminPage() {
-  const [tab, setTab]   = useState('dashboard');
+const [tab, setTab] = useState(() => {
+  return localStorage.getItem('adminActiveTab') || 'dashboard';
+});
+
+useEffect(() => {
+  localStorage.setItem('adminActiveTab', tab);
+}, [tab]);
   const [stats, setStats]     = useState(null);
   const [books, setBooks]     = useState([]);
   const [bookTotal, setBookTotal] = useState(0);
@@ -303,13 +457,11 @@ export default function AdminPage() {
     setLoading(false);
   }, []);
 
-  // ВИПРАВЛЕНО: Скидаємо пошук і сторінку ТІЛЬКИ при зміні вкладки (щоб не ламати пагінацію)
   useEffect(() => {
     setSearch('');
     setBookPage(1);
   }, [tab]);
 
-  // ВИПРАВЛЕНО: Завантажуємо дані залежно від відкритої вкладки (з мінімальною затримкою для пошуку)
   useEffect(() => {
     const t = setTimeout(() => {
       if (tab === 'dashboard') loadStats();
@@ -394,7 +546,6 @@ export default function AdminPage() {
     { id: 'clubs',     label: 'Спільноти',           icon: Users2   },
   ];
 
-  // ВИПРАВЛЕНО: Безпечне читання загальної кількості книг для графіка, щоб не падала сторінка
   const totalBooksCount = stats?.total_books || 0;
 
   return (
@@ -549,9 +700,7 @@ export default function AdminPage() {
                           <div className="col-span-1 text-right">Дії</div>
                         </div>
                         {books.map(b => {
-                          // ВИПРАВЛЕНО: Читаємо жанри через Category, оскільки бекенд так віддає їх в AdminListBooks
                           const genreStr = b.category || b.Category;
-                          // ВИПРАВЛЕНО: Читаємо сторінки (якщо бекенд їх не віддає, буде прочерк, це нормально)
                           const pages = b.page_count || b.PageCount || '—';
                           
                           return (
@@ -664,8 +813,6 @@ export default function AdminPage() {
                     : (
                       <div className="space-y-3">
                         {reviews.map(r => {
-                          // ВИПРАВЛЕНО: Читаємо оцінку з великої або маленької літери. 
-                          // Назви книг бекенд не віддає взагалі у списку адмінки, тому приховуємо цей текст якщо його немає.
                           const ratingVal = r.rating ?? r.Rating ?? 0;
                           const revText = r.review_text ?? r.ReviewText;
                           const bTitle = r.book_title ?? r.BookTitle;
@@ -726,7 +873,6 @@ export default function AdminPage() {
                           <div className="col-span-1 text-right">Дії</div>
                         </div>
                         {clubs.map(c => {
-                          // ВИПРАВЛЕНО: Зчитуємо поле creator, бо саме його віддає бекенд
                           const adminName = c.admin_name || c.creator || c.Creator || '—';
                           const status = c.status || c.Status;
                           const membersCount = c.members_count ?? c.MembersCount ?? '?';
