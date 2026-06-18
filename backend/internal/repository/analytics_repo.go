@@ -19,59 +19,74 @@ func NewAnalyticsRepository(db *pgxpool.Pool) *AnalyticsRepository {
 	return &AnalyticsRepository{db: db}
 }
 
-// GetTrendingBooks — топ книг за тренд-балом за останній тиждень (оптимізовано через CTE)
+// GetTrendingBooks — топ книг за тренд-балом за останній тиждень
 func (r *AnalyticsRepository) GetTrendingBooks(ctx context.Context, days, limit int) ([]models.Book, error) {
 	query := `
 		WITH trending AS (
 			SELECT work_id, SUM(score) as total_score
 			FROM trending_events
-			WHERE created_at > NOW() - ($1 || ' days')::interval
+			WHERE created_at > NOW() - interval '1 day' * $1
 			GROUP BY work_id
 			ORDER BY total_score DESC
 			LIMIT $2
+		),
+		book_details AS (
+			SELECT w.id, w.title, a.name AS author_name, e.cover_url, g.name AS genre_name,
+				   -- ROW_NUMBER гарантує, що ми беремо лише один (основний) запис для кожної книги
+				   ROW_NUMBER() OVER(PARTITION BY w.id ORDER BY e.is_primary DESC NULLS LAST) as rn
+			FROM works w
+			JOIN trending t ON w.id = t.work_id
+			LEFT JOIN authors a ON w.author_id = a.id
+			LEFT JOIN editions e ON e.work_id = w.id
+			LEFT JOIN work_genres wg ON wg.work_id = w.id
+			LEFT JOIN genres g ON wg.genre_id = g.id
 		)
-		SELECT DISTINCT ON (t.total_score, w.id)
-			w.id::text, w.title,
-			COALESCE(a.name, 'Невідомий автор'),
-			COALESCE(e.cover_url, ''),
-			COALESCE(g.name, ''),
+		SELECT 
+			t.work_id::text, bd.title,
+			COALESCE(bd.author_name, 'Невідомий автор'),
+			COALESCE(bd.cover_url, ''),
+			COALESCE(bd.genre_name, ''),
 			t.total_score
 		FROM trending t
-		JOIN works w ON t.work_id = w.id
-		LEFT JOIN authors a ON w.author_id = a.id
-		LEFT JOIN editions e ON e.work_id = w.id
-		LEFT JOIN work_genres wg ON wg.work_id = w.id
-		LEFT JOIN genres g ON wg.genre_id = g.id
-		ORDER BY t.total_score DESC, w.id`
+		JOIN book_details bd ON t.work_id = bd.id AND bd.rn = 1
+		ORDER BY t.total_score DESC, t.work_id`
 
 	rows, err := r.db.Query(ctx, query, days, limit)
 	if err != nil {
-		// Fallback
+		// Fallback: якщо помилка, віддаємо просто найновіші
 		return r.GetNewest(ctx, limit)
 	}
 	defer rows.Close()
 
 	books, err := r.scanBooks(rows, true)
 	if err != nil || len(books) == 0 {
+		// Fallback: якщо ще немає подій (порожній масив), віддаємо найновіші
 		return r.GetNewest(ctx, limit)
 	}
 	return books, nil
 }
 
-// GetNewest — найновіші книги за датою публікації
+// GetNewest — найновіші книги за датою публікації (publication_date), а не за created_at
 func (r *AnalyticsRepository) GetNewest(ctx context.Context, limit int) ([]models.Book, error) {
 	query := `
-		SELECT DISTINCT ON (w.created_at, w.id)
-			w.id::text, w.title,
-			COALESCE(a.name, 'Невідомий автор'),
-			COALESCE(e.cover_url, ''),
-			COALESCE(g.name, '')
-		FROM works w
-		LEFT JOIN authors a ON w.author_id = a.id
-		LEFT JOIN editions e ON e.work_id = w.id
-		LEFT JOIN work_genres wg ON wg.work_id = w.id
-		LEFT JOIN genres g ON wg.genre_id = g.id
-		ORDER BY w.created_at DESC, w.id
+		WITH book_details AS (
+			SELECT w.id, w.title, a.name AS author_name, e.cover_url, g.name AS genre_name, e.publication_date,
+				   -- Беремо основне видання для дати, якщо є дублі жанрів/видань - відсікаємо
+				   ROW_NUMBER() OVER(PARTITION BY w.id ORDER BY e.is_primary DESC NULLS LAST) as rn
+			FROM works w
+			LEFT JOIN authors a ON w.author_id = a.id
+			LEFT JOIN editions e ON e.work_id = w.id
+			LEFT JOIN work_genres wg ON wg.work_id = w.id
+			LEFT JOIN genres g ON wg.genre_id = g.id
+		)
+		SELECT id::text, title,
+			   COALESCE(author_name, 'Невідомий автор'),
+			   COALESCE(cover_url, ''),
+			   COALESCE(genre_name, '')
+		FROM book_details
+		WHERE rn = 1
+		-- Ось тут ключова зміна: сортуємо за датою публікації, порожні відкидаємо в кінець
+		ORDER BY publication_date DESC NULLS LAST, id
 		LIMIT $1`
 
 	rows, err := r.db.Query(ctx, query, limit)
@@ -216,7 +231,7 @@ func (r *AnalyticsRepository) TrackEvent(ctx context.Context, workID, eventType 
 	return err
 }
 
-// GetUserStats — особиста аналітика (оптимізовано через підзапити для уникнення дублювання результатів)
+// GetUserStats — особиста аналітика
 func (r *AnalyticsRepository) GetUserStats(ctx context.Context, userID string) (map[string]interface{}, error) {
 	stats := make(map[string]interface{})
 
@@ -328,7 +343,6 @@ func (r *AnalyticsRepository) GetOrCreateGoal(ctx context.Context, userID string
 		userID, year,
 	).Scan(&targetBooks, &targetPages)
 
-	// Якщо запису ще немає, створюємо з нулями
 	if err == pgx.ErrNoRows || err != nil {
 		r.db.Exec(ctx, `
 			INSERT INTO reading_goals (user_id, goal_year, target_books, target_pages)
@@ -415,7 +429,6 @@ func (r *AnalyticsRepository) GetHighRatedBooks(ctx context.Context, userID stri
 	return titles, nil
 }
 
-// internal/repository/analytics_repository.go
 // GetGoal повертає ціль читання користувача на конкретний рік
 func (r *AnalyticsRepository) GetGoal(ctx context.Context, userID string, year int) (map[string]interface{}, error) {
 	var targetBooks, targetPages int
@@ -425,7 +438,6 @@ func (r *AnalyticsRepository) GetGoal(ctx context.Context, userID string, year i
 	).Scan(&targetBooks, &targetPages)
 
 	if err != nil {
-		// Якщо ціль ще не створена, повертаємо нулі без помилки
 		if errors.Is(err, pgx.ErrNoRows) {
 			return map[string]interface{}{
 				"year":         year,
@@ -443,7 +455,7 @@ func (r *AnalyticsRepository) GetGoal(ctx context.Context, userID string, year i
 	}, nil
 }
 
-// internal/repository/analytics_repo.go
+// GetUserStreak
 func (r *AnalyticsRepository) GetUserStreak(ctx context.Context, userID string) (int, error) {
 	var streak int
 	query := `
@@ -457,7 +469,7 @@ func (r *AnalyticsRepository) GetUserStreak(ctx context.Context, userID string) 
 			WHERE EXISTS (
 				SELECT 1 FROM reading_sessions 
 				WHERE user_id = $1::uuid AND session_date = (last_date - INTERVAL '1 day')::date
-			) -- ДОДАНО ЗАКРИВАЮЧУ ДУЖКУ
+			)
 		)
 		SELECT COUNT(*) FROM dates;`
 
