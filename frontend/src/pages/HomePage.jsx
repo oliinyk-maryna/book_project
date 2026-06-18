@@ -88,8 +88,11 @@ export default function HomePage({ handleNavigate, isLoggedIn, currentUser, open
       try {
         const [pRes, nRes, yRes] = await Promise.all([
 
-          fetch(`${API_URL}/books?sort=popular&limit=10`),
-          fetch(`${API_URL}/books?sort=new&limit=10`),
+          // Замість fetch(`${API_URL}/books?sort=popular&limit=10`)
+fetch(`${API_URL}/trending?limit=10`),
+
+// Замість fetch(`${API_URL}/books?sort=new&limit=10`)
+fetch(`${API_URL}/newest?limit=10`),
           fetch(`${API_URL}/top-year?year=${year}&limit=10`),
         ]);
         if (pRes.ok) setPopular((await pRes.json()) || []);
