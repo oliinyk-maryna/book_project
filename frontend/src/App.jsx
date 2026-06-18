@@ -19,7 +19,9 @@ import AuthModal       from './components/auth/AuthModal';
 import GlobalSearch    from './components/layout/GlobalSearch';
 import NotificationPanel from './components/layout/NotificationPanel';
 import ResetPasswordPage from './pages/ResetPasswordPage';
-import { API_URL }     from './config';
+
+// ДОДАНО getImageUrl сюди:
+import { API_URL, getImageUrl } from './config';
 
 /* ── Avatar helper ─────────────────────────────────────────────── */
 export function Avatar({ user, size = 'md', className = '' }) {
@@ -29,7 +31,8 @@ export function Avatar({ user, size = 'md', className = '' }) {
   const ci = user?.username ? user.username.charCodeAt(0) % colors.length : 0;
   return (
     <div className={`${sizes[size]} ${className} rounded-full overflow-hidden flex items-center justify-center font-bold text-white shrink-0 ${!user?.avatar_url ? colors[ci] : ''}`}>
-      {user?.avatar_url && <img src={user.avatar_url} alt={user.username} className="w-full h-full object-cover" onError={e=>e.target.style.display='none'} />}
+      {/* ВИПРАВЛЕНО: додано getImageUrl */}
+      {user?.avatar_url && <img src={getImageUrl(user.avatar_url)} alt={user.username} className="w-full h-full object-cover" onError={e=>e.target.style.display='none'} />}
       <span style={{ display: user?.avatar_url ? 'none' : 'flex' }}>{initials}</span>
     </div>
   );
@@ -50,6 +53,7 @@ const BOTTOM_NAV = [
   { id:'clubs',     icon:Users,     label:'Клуби',     path:'/clubs',     auth: true },
   { id:'analytics', icon:BarChart2, label:'Статистика',path:'/analytics', auth: true },
 ];
+
 function AdminRoute({ children, currentUser, initializing }) {
   if (initializing) {
     return <div className="h-screen flex items-center justify-center"><Loader2 className="w-8 h-8 animate-spin" /></div>;
@@ -90,6 +94,13 @@ export default function App() {
   };
   
   useEffect(() => { fetchUserProfile(); }, []);
+
+  // ДОДАНО: Слухач для миттєвого оновлення профілю (наприклад, після завантаження аватарки)
+  useEffect(() => {
+    const handleProfileRefresh = () => fetchUserProfile();
+    window.addEventListener('app:refresh-profile', handleProfileRefresh);
+    return () => window.removeEventListener('app:refresh-profile', handleProfileRefresh);
+  }, []);
 
   useEffect(() => {
     const h = () => { setIsLoggedIn(false); setCurrentUser(null); setAuthMode('login'); setAuthOpen(true); };
@@ -150,7 +161,11 @@ export default function App() {
                 <button onClick={() => handleNavigate('profile')}
                   className="w-9 h-9 rounded-full overflow-hidden flex items-center justify-center text-xs font-bold text-white shrink-0 ring-2 ring-transparent hover:ring-[var(--c-primary)] transition-all"
                   style={{ background: currentUser?.avatar_url ? 'transparent' : 'var(--c-primary)' }}>
-                  {currentUser?.avatar_url ? <img src={currentUser.avatar_url} className="w-full h-full object-cover" onError={e => e.target.style.display = 'none'} alt="" /> : currentUser?.username?.[0]?.toUpperCase()}
+                  {/* ВИПРАВЛЕНО: додано getImageUrl навколо currentUser.avatar_url */}
+                  {currentUser?.avatar_url 
+                    ? <img src={getImageUrl(currentUser?.avatar_url)} className="w-full h-full object-cover" onError={e => e.target.style.display = 'none'} alt="" /> 
+                    : currentUser?.username?.[0]?.toUpperCase()
+                  }
                 </button>
               ) : (
                 <button onClick={() => openAuth('login')} className="text-sm font-bold px-4 py-2 rounded-full text-white" style={{ background: 'var(--c-primary)' }}>Увійти</button>
@@ -161,32 +176,32 @@ export default function App() {
           {/* ── Основний контент ────────────────────────────────────── */}
           <main className="pt-[60px] pb-[72px] md:pb-4 md:pl-[200px] min-h-screen">
             <Routes>
-  <Route path="/" element={<HomePage {...sharedProps} />} />
-  <Route path="/discover" element={<DiscoverPage {...sharedProps} />} />
-  <Route path="/library" element={<LibraryPage {...sharedProps} />} />
-  <Route path="/clubs" element={<ClubsPage {...sharedProps} />} />
-  <Route path="/analytics" element={<AnalyticsPage isLoggedIn={isLoggedIn} openAuthModal={openAuth} />} />
-  <Route path="/profile" element={<ProfilePage handleNavigate={handleNavigate} handleLogout={handleLogout} currentUser={currentUser} isLoggedIn={isLoggedIn} openAuthModal={openAuth} />} />
-  <Route path="/settings" element={<SettingsPage fetchUserProfile={fetchUserProfile} handleNavigate={handleNavigate} />} />
-  <Route path="/book/:id" element={<BookPage {...sharedProps} />} />
-  
-  {/* Відновлені маршрути */}
-  <Route path="/feed" element={<FeedPage isLoggedIn={isLoggedIn} currentUser={currentUser} handleNavigate={handleNavigate} openAuthModal={openAuth} />} />
-  <Route path="/tops" element={<TopsPage handleNavigate={handleNavigate} />} />
-  <Route path="/user/:id" element={<UserProfilePage isLoggedIn={isLoggedIn} currentUser={currentUser} handleNavigate={handleNavigate} />} />
-  <Route path="/reset-password" element={<ResetPasswordPage />} />
-  
-  {/* Адмінка */}
-  <Route path="/admin" element={isAdmin ? <AdminPage /> : <Navigate to="/" replace />} />
-  
-  <Route path="*" element={
-    <div className="flex flex-col items-center justify-center h-[70vh] gap-3">
-      <span className="font-display text-7xl font-bold" style={{ color:'var(--c-border)' }}>404</span>
-      <p style={{ color:'var(--c-text-3)' }}>Сторінку не знайдено</p>
-      <button onClick={() => navigate('/')} className="mt-2 px-6 py-2.5 rounded-full text-sm font-bold text-white" style={{ background:'var(--c-primary)' }}>На головну</button>
-    </div>
-  } />
-</Routes>
+              <Route path="/" element={<HomePage {...sharedProps} />} />
+              <Route path="/discover" element={<DiscoverPage {...sharedProps} />} />
+              <Route path="/library" element={<LibraryPage {...sharedProps} />} />
+              <Route path="/clubs" element={<ClubsPage {...sharedProps} />} />
+              <Route path="/analytics" element={<AnalyticsPage isLoggedIn={isLoggedIn} openAuthModal={openAuth} />} />
+              <Route path="/profile" element={<ProfilePage handleNavigate={handleNavigate} handleLogout={handleLogout} currentUser={currentUser} isLoggedIn={isLoggedIn} openAuthModal={openAuth} />} />
+              <Route path="/settings" element={<SettingsPage fetchUserProfile={fetchUserProfile} handleNavigate={handleNavigate} />} />
+              <Route path="/book/:id" element={<BookPage {...sharedProps} />} />
+              
+              {/* Відновлені маршрути */}
+              <Route path="/feed" element={<FeedPage isLoggedIn={isLoggedIn} currentUser={currentUser} handleNavigate={handleNavigate} openAuthModal={openAuth} />} />
+              <Route path="/tops" element={<TopsPage handleNavigate={handleNavigate} />} />
+              <Route path="/user/:id" element={<UserProfilePage isLoggedIn={isLoggedIn} currentUser={currentUser} handleNavigate={handleNavigate} />} />
+              <Route path="/reset-password" element={<ResetPasswordPage />} />
+              
+              {/* Адмінка */}
+              <Route path="/admin" element={isAdmin ? <AdminPage /> : <Navigate to="/" replace />} />
+              
+              <Route path="*" element={
+                <div className="flex flex-col items-center justify-center h-[70vh] gap-3">
+                  <span className="font-display text-7xl font-bold" style={{ color:'var(--c-border)' }}>404</span>
+                  <p style={{ color:'var(--c-text-3)' }}>Сторінку не знайдено</p>
+                  <button onClick={() => navigate('/')} className="mt-2 px-6 py-2.5 rounded-full text-sm font-bold text-white" style={{ background:'var(--c-primary)' }}>На головну</button>
+                </div>
+              } />
+            </Routes>
           </main>
 
           {/* ── Sidebar & Nav (залишаються як були) ───────────────── */}
@@ -207,5 +222,4 @@ export default function App() {
       )}
     </div>
   );
-
 }

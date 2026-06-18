@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Settings, LogOut, BookOpen, Users, X, ChevronRight, UserPlus, Search, Shield } from 'lucide-react';
-import { API_URL } from '../config';
 import { userApi } from '../api/user.api';
 import toast from 'react-hot-toast';
+import { API_URL, getImageUrl } from '../config';
 
 /* ── Модалка підписники/підписки з рекомендаціями + пошуком ─────── */
 function ConnectionsModal({ type, userId, onClose, handleNavigate }) {
@@ -179,9 +179,12 @@ function PersonRow({ person, onNavigate }) {
   return (
     <div onClick={onNavigate}
       className="w-full flex items-center gap-3 px-3 py-2.5 rounded-2xl transition-colors hover:bg-[var(--c-bg)] text-left cursor-pointer">
-      <div className="w-9 h-9 rounded-full overflow-hidden flex items-center justify-center text-xs font-bold text-white shrink-0" style={{ background:'var(--c-primary)' }}>
-        {person.avatar_url ? <img src={person.avatar_url} className="w-full h-full object-cover" alt="" onError={e=>e.target.style.display='none'} /> : person.username?.[0]?.toUpperCase()}
-      </div>
+      <div className="w-20 h-20 rounded-full overflow-hidden">
+  {person.avatar_url 
+    ? <img src={getImageUrl(person.avatar_url)} className="w-full h-full object-cover" alt="" />
+    : <div className="w-full h-full flex items-center justify-center bg-stone-200">{person.username?.[0]?.toUpperCase()}</div>
+  }
+</div>
       <div className="flex-1 min-w-0">
         <p className="text-sm font-bold truncate" style={{ color:'var(--c-text)' }}>{person.username}</p>
         {person.bio && <p className="text-xs truncate" style={{ color:'var(--c-text-3)' }}>{person.bio}</p>}
@@ -276,7 +279,7 @@ export default function ProfilePage({ handleNavigate, handleLogout, currentUser,
         <div className="w-20 h-20 rounded-full overflow-hidden flex items-center justify-center text-2xl font-bold text-white shadow-lg"
           style={{ background: currentUser.avatar_url ? 'transparent' : 'var(--c-primary)' }}>
           {currentUser.avatar_url
-            ? <img src={currentUser.avatar_url} className="w-full h-full object-cover" onError={e=>e.target.style.display='none'} alt="" />
+            ? <img src={getImageUrl(currentUser.avatar_url)} className="w-full h-full object-cover" onError={e=>e.target.style.display='none'} alt="" />
             : currentUser.username?.[0]?.toUpperCase()}
         </div>
         <div className="min-w-0">

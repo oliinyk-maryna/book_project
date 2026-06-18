@@ -3,6 +3,7 @@ import { Search, Bell, ChevronDown, Settings, Shield, LogOut, X, BookOpen, User 
 import { booksApi } from '../../api/books.api';
 import { userApi } from '../../api/user.api';
 import { getAuthorsString } from '../../utils/helpers';
+import { API_URL, getImageUrl } from '../config';
 
 // ── Пошук ─────────────────────────────────────────────────────────────────────
 function SearchBar({ onNavigate }) {
@@ -211,8 +212,16 @@ function UserDropdown({ user, onLogout, onNavigate }) {
       <button onClick={() => setOpen(!open)}
         className="flex items-center gap-2 rounded-full hover:bg-stone-100 pl-1 pr-2 py-1 transition-colors">
         <div className="w-8 h-8 rounded-full bg-[#2C5234] text-white text-xs font-bold flex items-center justify-center overflow-hidden">
-          {user.avatar_url ? <img src={user.avatar_url} alt="" className="w-full h-full object-cover" /> : initials}
-        </div>
+  {user.avatar_url
+    ? <img 
+        src={getImageUrl(user.avatar_url)} 
+        className="w-full h-full object-cover" 
+        onError={e => e.target.style.display = 'none'} 
+        alt="Avatar" 
+      />
+    : user.username?.[0]?.toUpperCase()
+  }
+</div>
         <span className="text-sm font-semibold text-stone-800 hidden sm:block max-w-24 truncate">{user.username}</span>
         <ChevronDown className={`w-3.5 h-3.5 text-stone-400 transition-transform ${open ? 'rotate-180' : ''}`} />
       </button>

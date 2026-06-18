@@ -1,17 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { User, Image as ImageIcon, FileText, Save, Loader2, Check, ArrowLeft, Shield, UploadCloud } from 'lucide-react';
-import { API_URL } from '../config';
 import { authApi } from '../api/auth.api';
+import { API_URL, getImageUrl } from '../config';
 
 export default function SettingsPage({ fetchUserProfile, handleNavigate }) {
   const [user, setUser] = useState({ username: '', bio: '', avatar_url: '' });
-  const getImageUrl = (url) => {
-    if (!url) return '';
-    if (url.startsWith('http')) return url;
-    
-    const baseUrl = API_URL.replace(/\/api\/?$/, ''); 
-    return `${baseUrl}${url}`;
-  };
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [saved, setSaved] = useState(false);
