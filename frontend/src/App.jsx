@@ -20,7 +20,6 @@ import GlobalSearch    from './components/layout/GlobalSearch';
 import NotificationPanel from './components/layout/NotificationPanel';
 import ResetPasswordPage from './pages/ResetPasswordPage';
 
-// ДОДАНО getImageUrl сюди:
 import { API_URL, getImageUrl } from './config';
 
 /* ── Avatar helper ─────────────────────────────────────────────── */
@@ -31,7 +30,6 @@ export function Avatar({ user, size = 'md', className = '' }) {
   const ci = user?.username ? user.username.charCodeAt(0) % colors.length : 0;
   return (
     <div className={`${sizes[size]} ${className} rounded-full overflow-hidden flex items-center justify-center font-bold text-white shrink-0 ${!user?.avatar_url ? colors[ci] : ''}`}>
-      {/* ВИПРАВЛЕНО: додано getImageUrl */}
       {user?.avatar_url && <img src={getImageUrl(user.avatar_url)} alt={user.username} className="w-full h-full object-cover" onError={e=>e.target.style.display='none'} />}
       <span style={{ display: user?.avatar_url ? 'none' : 'flex' }}>{initials}</span>
     </div>
@@ -45,10 +43,10 @@ export const FullScreenLoader = () => (
   </div>
 );
 
-/* ── Bottom Nav ─────────────────────────────────────────────────── */
+/* ── Bottom Nav Configuration ───────────────────────────────────── */
 const BOTTOM_NAV = [
-  { id:'home',      icon:Home,      label:'Головна',   path:'/' },
-  { id:'discover',  icon:Compass,   label:'Каталог',   path:'/discover' },
+  { id:'home',      icon:Home,      label:'Головна',    path:'/' },
+  { id:'discover',  icon:Compass,   label:'Каталог',    path:'/discover' },
   { id:'library',   icon:Library,   label:'Полиця',    path:'/library',   auth: true },
   { id:'clubs',     icon:Users,     label:'Клуби',     path:'/clubs',     auth: true },
   { id:'analytics', icon:BarChart2, label:'Статистика',path:'/analytics', auth: true },
@@ -64,7 +62,7 @@ function AdminRoute({ children, currentUser, initializing }) {
 export default function App() {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [currentUser, setCurrentUser] = useState(null);
-  const [initializing, setInitializing] = useState(true); // ВАЖЛИВО: за замовчуванням true
+  const [initializing, setInitializing] = useState(true);
   const [authOpen, setAuthOpen] = useState(false);
   const [authMode, setAuthMode] = useState('login');
   const [searchOpen, setSearchOpen] = useState(false);
@@ -90,12 +88,11 @@ export default function App() {
     } catch (e) {
       console.error(e);
     }
-    setInitializing(false); // Завжди вимикаємо лоадер після запиту
+    setInitializing(false);
   };
   
   useEffect(() => { fetchUserProfile(); }, []);
 
-  // ДОДАНО: Слухач для миттєвого оновлення профілю (наприклад, після завантаження аватарки)
   useEffect(() => {
     const handleProfileRefresh = () => fetchUserProfile();
     window.addEventListener('app:refresh-profile', handleProfileRefresh);
@@ -141,7 +138,6 @@ export default function App() {
     <div className="min-h-screen" style={{ background: 'var(--c-bg)', color: 'var(--c-text)', fontFamily: 'var(--font-ui)' }}>
       <Toaster position="bottom-right" />
 
-      {/* Якщо дані ще завантажуються, показуємо лише лоадер на весь екран */}
       {initializing ? (
         <div className="h-screen flex items-center justify-center">
           <Loader2 className="w-10 h-10 animate-spin" style={{ color: 'var(--c-primary)' }} />
@@ -161,14 +157,28 @@ export default function App() {
                 <button onClick={() => handleNavigate('profile')}
                   className="w-9 h-9 rounded-full overflow-hidden flex items-center justify-center text-xs font-bold text-white shrink-0 ring-2 ring-transparent hover:ring-[var(--c-primary)] transition-all"
                   style={{ background: currentUser?.avatar_url ? 'transparent' : 'var(--c-primary)' }}>
-                  {/* ВИПРАВЛЕНО: додано getImageUrl навколо currentUser.avatar_url */}
                   {currentUser?.avatar_url 
                     ? <img src={getImageUrl(currentUser?.avatar_url)} className="w-full h-full object-cover" onError={e => e.target.style.display = 'none'} alt="" /> 
                     : currentUser?.username?.[0]?.toUpperCase()
                   }
                 </button>
               ) : (
-                <button onClick={() => openAuth('login')} className="text-sm font-bold px-4 py-2 rounded-full text-white" style={{ background: 'var(--c-primary)' }}>Увійти</button>
+                <div className="flex items-center gap-2">
+                  <button 
+                    onClick={() => openAuth('login')} 
+                    className="text-sm font-bold px-3.5 py-2 rounded-full transition-colors" 
+                    style={{ color: 'var(--c-primary)' }}
+                  >
+                    Увійти
+                  </button>
+                  <button 
+                    onClick={() => openAuth('register')} 
+                    className="text-sm font-bold px-4 py-2 rounded-full text-white transition-opacity hover:opacity-90" 
+                    style={{ background: 'var(--c-primary)' }}
+                  >
+                    Зареєструватись
+                  </button>
+                </div>
               )}
             </div>
           </header>
@@ -185,14 +195,12 @@ export default function App() {
               <Route path="/settings" element={<SettingsPage fetchUserProfile={fetchUserProfile} handleNavigate={handleNavigate} />} />
               <Route path="/book/:id" element={<BookPage {...sharedProps} />} />
               
-              {/* Відновлені маршрути */}
               <Route path="/feed" element={<FeedPage isLoggedIn={isLoggedIn} currentUser={currentUser} handleNavigate={handleNavigate} openAuthModal={openAuth} />} />
               <Route path="/tops" element={<TopsPage handleNavigate={handleNavigate} />} />
               <Route path="/user/:id" element={<UserProfilePage isLoggedIn={isLoggedIn} currentUser={currentUser} handleNavigate={handleNavigate} />} />
               <Route path="/reset-password" element={<ResetPasswordPage />} />
               
-              {/* Адмінка */}
-              <Route path="/admin" element={isAdmin ? <AdminPage /> : <Navigate to="/" replace />} />
+              <Route path="/admin" element={<AdminRoute currentUser={currentUser} initializing={initializing}><AdminPage /></AdminRoute>} />
               
               <Route path="*" element={
                 <div className="flex flex-col items-center justify-center h-[70vh] gap-3">
@@ -204,16 +212,73 @@ export default function App() {
             </Routes>
           </main>
 
-          {/* ── Sidebar & Nav (залишаються як були) ───────────────── */}
+          {/* ── Sidebar (Десктоп меню з замочками) ──────────────────── */}
           <aside className="hidden md:flex fixed inset-y-0 left-0 w-[200px] flex-col pt-[60px] z-30" style={{ background: 'var(--c-surface)', borderRight: '1px solid var(--c-border)' }}>
             <nav className="flex-1 px-3 py-4 space-y-0.5">
-              {sideNavItems.map(item => (
-                <button key={item.id} onClick={() => item.auth && !isLoggedIn ? openAuth('login') : navigate(item.path)} className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-sm font-semibold text-[var(--c-text-2)]">
-                  <item.icon className="w-4 h-4" /> {item.label}
-                </button>
-              ))}
+              {sideNavItems.map(item => {
+                const isLocked = item.auth && !isLoggedIn;
+                const isActive = location.pathname === item.path;
+
+                if (isLocked) {
+                  return (
+                    <button 
+                      key={item.id} 
+                      onClick={() => openAuth('login')} 
+                      className="w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-sm font-semibold text-[#A19D94] hover:bg-stone-50/40 transition-all"
+                    >
+                      <div className="flex items-center gap-2.5">
+                        <item.icon className="w-4 h-4 opacity-60" /> 
+                        <span>{item.label}</span>
+                      </div>
+                      <Lock className="w-3.5 h-3.5 opacity-40" />
+                    </button>
+                  );
+                }
+
+                return (
+                  <button 
+                    key={item.id} 
+                    onClick={() => navigate(item.path)} 
+                    className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-sm font-semibold transition-all ${
+                      isActive ? 'text-white' : 'text-[var(--c-text-2)] hover:bg-stone-100/60'
+                    }`}
+                    style={isActive ? { background: 'var(--c-primary)' } : {}}
+                  >
+                    <item.icon className="w-4 h-4" /> {item.label}
+                  </button>
+                );
+              })}
             </nav>
           </aside>
+
+          {/* ── Mobile Bottom Nav (Нижнє мобільне меню з замочками) ─── */}
+          <nav className="md:hidden fixed bottom-0 inset-x-0 h-[65px] z-40 flex items-center justify-around px-2"
+            style={{ background: 'var(--c-surface)', borderTop: '1px solid var(--c-border)', paddingBottom: 'env(safe-area-inset-bottom)' }}>
+            {BOTTOM_NAV.map(item => {
+              const isLocked = item.auth && !isLoggedIn;
+              const isActive = location.pathname === item.path;
+              
+              return (
+                <button 
+                  key={item.id} 
+                  onClick={() => isLocked ? openAuth('login') : navigate(item.path)}
+                  className="flex flex-col items-center justify-center w-16 h-full gap-1 transition-all"
+                  style={{ color: isActive ? 'var(--c-primary)' : isLocked ? '#A19D94' : 'var(--c-text-3)' }}
+                >
+                  <div className="relative">
+                    <item.icon className="w-5 h-5" style={{ strokeWidth: isActive ? 2.5 : 2 }} />
+                    {isLocked && (
+                      <Lock 
+                        className="w-3 h-3 absolute -bottom-1 -right-1 rounded-full p-[1px]" 
+                        style={{ background: 'var(--c-surface)', color: '#A19D94' }} 
+                      />
+                    )}
+                  </div>
+                  <span className="text-[10px] font-bold tracking-wide">{item.label}</span>
+                </button>
+              );
+            })}
+          </nav>
 
           <AuthModal isOpen={authOpen} onClose={() => setAuthOpen(false)}
             setIsLoggedIn={v => { setIsLoggedIn(v); if (v) fetchUserProfile(); }}
