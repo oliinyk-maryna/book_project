@@ -79,3 +79,7 @@ func (s *UserBookService) UpdateProgress(ctx context.Context, userIDStr, workIDS
 	// Зверніть увагу на порядок аргументів: він має збігатися з тим, що ви написали в репозиторії
 	return s.repo.UpdateProgress(ctx, userID, workID, status, currentPage, notes, startDate, endDate)
 }
+
+func (s *BookService) UpdateBookCover(ctx context.Context, workID string, coverURL string) error {
+	return s.repo.UpdateCover(ctx, workID, coverURL)
+}

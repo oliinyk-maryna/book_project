@@ -3,6 +3,7 @@ package handler
 import (
 	"book_project/backend/internal/middleware"
 	"book_project/backend/internal/service"
+	"book_project/backend/internal/utils"
 	"encoding/json"
 	"log"
 	"net/http"
@@ -184,4 +185,40 @@ func (h *AuthHandler) Refresh(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]string{"token": token})
+}
+
+// POST /api/me/avatar
+func (h *AuthHandler) UploadAvatar(w http.ResponseWriter, r *http.Request) {
+	// Отримуємо ID користувача з контексту (middleware.Auth)
+	userID, ok := r.Context().Value(middleware.ContextUserID).(string)
+	if !ok || userID == "" {
+		http.Error(w, "Неавторизований", http.StatusUnauthorized)
+		return
+	}
+
+	// Викликаємо утиліту. Зверніть увагу: ключ "avatar", папка "uploads/avatars"
+	avatarURL, err := utils.SaveUploadedFile(r, "avatar", "uploads/avatars")
+	if err != nil {
+		http.Error(w, "Помилка збереження файлу: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	if avatarURL == "" {
+		http.Error(w, "Файл не передано", http.StatusBadRequest)
+		return
+	}
+
+	// Зберігаємо новий URL у базу даних
+	if err := h.authService.UpdateAvatar(r.Context(), userID, avatarURL); err != nil {
+		http.Error(w, "Помилка оновлення бази даних: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	// Повертаємо новий URL фронтенду
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(map[string]string{
+		"message":    "Аватар успішно оновлено",
+		"avatar_url": avatarURL,
+	})
 }

@@ -1313,3 +1313,28 @@ func (r *BookRepository) SearchPublishers(ctx context.Context, query string) ([]
 	}
 	return pubs, nil
 }
+
+func (r *BookRepository) UpdateCover(ctx context.Context, workID string, coverURL string) error {
+	// Оновлюємо основне видання для цієї книги
+	query := `
+		UPDATE editions 
+		SET cover_url = $1, updated_at = NOW() 
+		WHERE work_id = $2::uuid AND is_primary = true`
+
+	cmd, err := r.db.Exec(ctx, query, coverURL, workID)
+	if err != nil {
+		return err
+	}
+
+	// Якщо основного видання не було, можемо оновити будь-яке перше-ліпше
+	if cmd.RowsAffected() == 0 {
+		fallbackQuery := `
+			UPDATE editions 
+			SET cover_url = $1, updated_at = NOW() 
+			WHERE work_id = $2::uuid`
+		_, err = r.db.Exec(ctx, fallbackQuery, coverURL, workID)
+		return err
+	}
+
+	return nil
+}

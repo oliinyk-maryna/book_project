@@ -10,6 +10,7 @@ import (
 	"book_project/backend/internal/middleware"
 	"book_project/backend/internal/models"
 	"book_project/backend/internal/service"
+	"book_project/backend/internal/utils"
 )
 
 type BookHandler struct {
@@ -394,4 +395,40 @@ func (h *BookHandler) SearchPublishers(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(pubs)
+}
+
+// POST /api/books/{id}/cover
+func (h *BookHandler) UploadBookCover(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+
+	// Перевірка авторизації (можна прибрати, якщо завантажувати можуть усі)
+	userID := getUserID(r)
+	if userID == "" {
+		http.Error(w, "Неавторизований", http.StatusUnauthorized)
+		return
+	}
+
+	// Викликаємо нашу утиліту. "cover_file" - це назва поля у form-data на фронтенді
+	coverURL, err := utils.SaveUploadedFile(r, "cover_file", "uploads/covers")
+	if err != nil {
+		http.Error(w, "Помилка збереження файлу: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	if coverURL == "" {
+		http.Error(w, "Файл не передано", http.StatusBadRequest)
+		return
+	}
+
+	// Зберігаємо новий URL у базу даних
+	if err := h.bookService.UpdateBookCover(r.Context(), id, coverURL); err != nil {
+		http.Error(w, "Помилка оновлення бази даних: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(map[string]string{
+		"message":   "Обкладинку успішно завантажено",
+		"cover_url": coverURL,
+	})
 }

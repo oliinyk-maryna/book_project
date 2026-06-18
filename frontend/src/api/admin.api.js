@@ -40,8 +40,9 @@ export const adminApi = {
       { method: 'POST', headers: { Authorization: `Bearer ${token}` }, body: fd }
     );
     
-    // Тут перевірка є, тому помилки завантаження фото ловилися б нормально
-    if (!res.ok) throw new Error('Помилка завантаження'); 
-    return res.json();
+    if (!res.ok) {
+      const errorText = await res.text();
+      throw new Error(errorText || 'Помилка завантаження'); 
+    }
   },
 };

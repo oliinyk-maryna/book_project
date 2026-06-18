@@ -2,16 +2,13 @@ package handler
 
 import (
 	"encoding/json"
-	"fmt"
-	"io"
 	"net/http"
-	"os"
-	"path/filepath"
 	"strconv"
 	"time"
 
 	"book_project/backend/internal/middleware"
 	"book_project/backend/internal/repository"
+	"book_project/backend/internal/utils"
 )
 
 type AdminHandler struct {
@@ -364,43 +361,29 @@ func (h *AdminHandler) ListBooks(w http.ResponseWriter, r *http.Request) {
 
 // POST /api/admin/upload
 func (h *AdminHandler) UploadImage(w http.ResponseWriter, r *http.Request) {
+	// 1. Перевіряємо, чи це адмін
 	if !adminCheck(r) {
 		http.Error(w, "Forbidden", http.StatusForbidden)
 		return
 	}
 
-	if err := r.ParseMultipartForm(5 << 20); err != nil {
-		http.Error(w, "Файл занадто великий (макс 5MB)", http.StatusBadRequest)
-		return
-	}
-
-	file, header, err := r.FormFile("image")
+	// 2. Використовуємо нашу нову утиліту
+	// Зверніть увагу: ключ форми тут "image", бо так було у вашому початковому коді
+	imageURL, err := utils.SaveUploadedFile(r, "image", "uploads/covers")
 	if err != nil {
-		http.Error(w, "Не вдалося отримати файл", http.StatusBadRequest)
-		return
-	}
-	defer file.Close()
-
-	os.MkdirAll("./uploads", os.ModePerm)
-
-	ext := filepath.Ext(header.Filename)
-	newFileName := fmt.Sprintf("cover_%d%s", time.Now().UnixNano(), ext)
-	savePath := filepath.Join(".", "uploads", newFileName)
-
-	dst, err := os.Create(savePath)
-	if err != nil {
-		http.Error(w, "Помилка збереження файлу на сервері", http.StatusInternalServerError)
-		return
-	}
-	defer dst.Close()
-
-	if _, err := io.Copy(dst, file); err != nil {
-		http.Error(w, "Помилка під час копіювання файлу", http.StatusInternalServerError)
+		http.Error(w, "Помилка збереження файлу: "+err.Error(), http.StatusInternalServerError)
 		return
 	}
 
-	fileURL := fmt.Sprintf("/uploads/%s", newFileName)
+	if imageURL == "" {
+		http.Error(w, "Файл не передано", http.StatusBadRequest)
+		return
+	}
 
+	// 3. Віддаємо фронтенду (адмінці) URL збереженої картинки
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]string{"url": fileURL})
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(map[string]string{
+		"url": imageURL, // Наприклад: "/uploads/covers/1718812345.jpg"
+	})
 }

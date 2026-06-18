@@ -237,6 +237,12 @@ func NewRouter(db *pgxpool.Pool) http.Handler {
 
 	mux.HandleFunc("GET /api/genres/search", bookHandler.SearchGenres)
 	mux.HandleFunc("GET /api/publishers/search", bookHandler.SearchPublishers)
+	// Додайте це до реєстрації роутів (наприклад, поруч з іншими публічними роутами)
+	mux.Handle("GET /uploads/", http.StripPrefix("/uploads/", http.FileServer(http.Dir("./uploads"))))
+	// Завантаження обкладинки (з авторизацією)
+	mux.Handle("POST /api/books/{id}/cover", middleware.Auth(http.HandlerFunc(bookHandler.UploadBookCover)))
+	// Завантаження фото профілю (потребує авторизації)
+	mux.Handle("POST /api/me/avatar", middleware.Auth(http.HandlerFunc(authHandler.UploadAvatar)))
 
 	return middleware.CORS(mux)
 

@@ -186,3 +186,14 @@ func (r *UserRepository) UpdatePasswordAndClearToken(ctx context.Context, userID
 
 	return tx.Commit(ctx)
 }
+
+// UpdateAvatar оновлює URL картинки профілю користувача
+func (r *UserRepository) UpdateAvatar(ctx context.Context, userID string, avatarURL string) error {
+	query := `
+		UPDATE users 
+		SET avatar_url = $1, updated_at = NOW() 
+		WHERE id = $2::uuid`
+
+	_, err := r.db.Exec(ctx, query, avatarURL, userID)
+	return err
+}

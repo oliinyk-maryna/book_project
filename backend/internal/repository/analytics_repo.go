@@ -19,50 +19,70 @@ func NewAnalyticsRepository(db *pgxpool.Pool) *AnalyticsRepository {
 	return &AnalyticsRepository{db: db}
 }
 
-// GetTrendingBooks — топ книг за тренд-балом за останній тиждень
 func (r *AnalyticsRepository) GetTrendingBooks(ctx context.Context, days, limit int) ([]models.Book, error) {
 	query := `
-		WITH trending AS (
-			SELECT work_id, SUM(score) as total_score
-			FROM trending_events
-			WHERE created_at > NOW() - interval '1 day' * $1
-			GROUP BY work_id
-			ORDER BY total_score DESC
-			LIMIT $2
-		),
-		book_details AS (
-			SELECT w.id, w.title, a.name AS author_name, e.cover_url, g.name AS genre_name,
-				   -- ROW_NUMBER гарантує, що ми беремо лише один (основний) запис для кожної книги
-				   ROW_NUMBER() OVER(PARTITION BY w.id ORDER BY e.is_primary DESC NULLS LAST) as rn
-			FROM works w
-			JOIN trending t ON w.id = t.work_id
-			LEFT JOIN authors a ON w.author_id = a.id
-			LEFT JOIN editions e ON e.work_id = w.id
-			LEFT JOIN work_genres wg ON wg.work_id = w.id
-			LEFT JOIN genres g ON wg.genre_id = g.id
-		)
-		SELECT 
-			t.work_id::text, bd.title,
-			COALESCE(bd.author_name, 'Невідомий автор'),
-			COALESCE(bd.cover_url, ''),
-			COALESCE(bd.genre_name, ''),
-			t.total_score
-		FROM trending t
-		JOIN book_details bd ON t.work_id = bd.id AND bd.rn = 1
-		ORDER BY t.total_score DESC, t.work_id`
+        WITH trending AS (
+            SELECT work_id, SUM(score) as total_score
+            FROM trending_events
+            WHERE created_at > NOW() - interval '1 day' * $1
+            GROUP BY work_id
+            ORDER BY total_score DESC
+            LIMIT $2
+        ),
+        book_details AS (
+            SELECT w.id, w.title, a.name AS author_name, e.cover_url, g.name AS genre_name,
+                   ROW_NUMBER() OVER(PARTITION BY w.id ORDER BY e.is_primary DESC NULLS LAST) as rn
+            FROM works w
+            JOIN trending t ON w.id = t.work_id
+            LEFT JOIN authors a ON w.author_id = a.id
+            LEFT JOIN editions e ON e.work_id = w.id
+            LEFT JOIN work_genres wg ON wg.work_id = w.id
+            LEFT JOIN genres g ON wg.genre_id = g.id
+        )
+        SELECT 
+            t.work_id::text, bd.title,
+            COALESCE(bd.author_name, 'Невідомий автор'),
+            COALESCE(bd.cover_url, ''),
+            COALESCE(bd.genre_name, ''),
+            t.total_score
+        FROM trending t
+        JOIN book_details bd ON t.work_id = bd.id AND bd.rn = 1
+        ORDER BY t.total_score DESC, t.work_id`
 
 	rows, err := r.db.Query(ctx, query, days, limit)
-	if err != nil {
-		// Fallback: якщо помилка, віддаємо просто найновіші
-		return r.GetNewest(ctx, limit)
-	}
-	defer rows.Close()
 
-	books, err := r.scanBooks(rows, true)
-	if err != nil || len(books) == 0 {
-		// Fallback: якщо ще немає подій (порожній масив), віддаємо найновіші
-		return r.GetNewest(ctx, limit)
+	// Перевіряємо, чи отримали дані
+	var books []models.Book
+	if err == nil {
+		books, err = r.scanBooks(rows, true)
+		rows.Close()
 	}
+
+	// Якщо сталася помилка АБО книг немає, виконуємо "fallback" запит
+	if err != nil || len(books) == 0 {
+		fallbackQuery := `
+            SELECT w.id::text, w.title, 
+                   COALESCE(a.name, 'Невідомий автор'), 
+                   COALESCE(e.cover_url, ''), 
+                   COALESCE(g.name, ''),
+                   0 as total_score -- для підтримки структури
+            FROM works w
+            LEFT JOIN authors a ON w.author_id = a.id
+            LEFT JOIN editions e ON e.work_id = w.id AND e.is_primary = true
+            LEFT JOIN work_genres wg ON wg.work_id = w.id
+            LEFT JOIN genres g ON wg.genre_id = g.id
+            ORDER BY w.created_at DESC
+            LIMIT $1`
+
+		fallbackRows, fbErr := r.db.Query(ctx, fallbackQuery, limit)
+		if fbErr != nil {
+			return nil, fbErr
+		}
+		defer fallbackRows.Close()
+
+		return r.scanBooks(fallbackRows, true)
+	}
+
 	return books, nil
 }
 

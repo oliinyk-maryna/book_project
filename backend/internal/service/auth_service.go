@@ -192,3 +192,7 @@ func (s *AuthService) RefreshToken(ctx context.Context, authHeader string) (stri
 
 	return s.GenerateAccessToken(userID)
 }
+
+func (s *AuthService) UpdateAvatar(ctx context.Context, userID string, avatarURL string) error {
+	return s.repo.UpdateAvatar(ctx, userID, avatarURL)
+}

@@ -1,12 +1,17 @@
-import React, { useState, useEffect } from 'react';
-import { User, Image as ImageIcon, FileText, Save, Loader2, Check, ArrowLeft, Shield } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { User, Image as ImageIcon, FileText, Save, Loader2, Check, ArrowLeft, Shield, UploadCloud } from 'lucide-react';
 import { API_URL } from '../config';
+import { authApi } from '../api/auth.api';
 
 export default function SettingsPage({ fetchUserProfile, handleNavigate }) {
   const [user, setUser] = useState({ username: '', bio: '', avatar_url: '' });
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  
+  // Додаємо стан для процесу завантаження картинки
+  const [isUploadingImage, setIsUploadingImage] = useState(false);
+  const fileInputRef = useRef(null);
 
   useEffect(() => {
     const fetchProfile = async () => {
@@ -29,6 +34,32 @@ export default function SettingsPage({ fetchUserProfile, handleNavigate }) {
     };
     fetchProfile();
   }, []);
+
+  // Функція для обробки вибору файлу
+  const handleImageUpload = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    setIsUploadingImage(true);
+    try {
+      // Викликаємо наш новий метод з api
+      const res = await authApi.uploadAvatar(file);
+      
+      // Оновлюємо стан новим URL, який повернув сервер
+      setUser(prev => ({ ...prev, avatar_url: res.avatar_url }));
+      
+      // Якщо в App.jsx є загальний стан користувача, можемо одразу його оновити
+      if (fetchUserProfile) fetchUserProfile(); 
+      
+    } catch (error) {
+      console.error(error);
+      alert(error.message || 'Помилка при завантаженні зображення');
+    } finally {
+      setIsUploadingImage(false);
+      // Очищаємо input, щоб можна було завантажити той самий файл повторно
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  };
 
   const handleSave = async () => {
     setIsSaving(true);
@@ -78,21 +109,50 @@ export default function SettingsPage({ fetchUserProfile, handleNavigate }) {
           
           {/* Блок Аватара */}
           <div className="flex flex-col sm:flex-row gap-6 items-start sm:items-center p-5 bg-stone-50 rounded-3xl border border-stone-100">
-            <div className="w-24 h-24 sm:w-28 sm:h-28 rounded-full bg-white border border-stone-200 flex items-center justify-center overflow-hidden shrink-0 shadow-sm">
+            {/* Сама картинка */}
+            <div className="relative w-24 h-24 sm:w-28 sm:h-28 rounded-full bg-white border border-stone-200 flex items-center justify-center overflow-hidden shrink-0 shadow-sm group">
               {user.avatar_url ? (
                 <img src={user.avatar_url} alt="Avatar" className="w-full h-full object-cover" />
               ) : (
                 <User className="w-10 h-10 text-stone-300" />
               )}
+              
+              {/* Оверлей завантаження (якщо файл вантажиться зараз) */}
+              {isUploadingImage && (
+                <div className="absolute inset-0 bg-white/70 backdrop-blur-sm flex items-center justify-center">
+                  <Loader2 className="w-6 h-6 animate-spin text-[#2C5234]" />
+                </div>
+              )}
             </div>
-            <div className="flex-1 w-full space-y-2">
+
+            {/* Кнопка завантаження */}
+            <div className="flex-1 w-full space-y-3">
               <label className="text-[11px] font-bold text-stone-500 uppercase tracking-widest flex items-center gap-2">
-                <ImageIcon className="w-4 h-4 text-[#2C5234]" /> URL Аватара
+                <ImageIcon className="w-4 h-4 text-[#2C5234]" /> Фото профілю
               </label>
-              <input type="text" value={user.avatar_url} onChange={e => setUser({ ...user, avatar_url: e.target.value })}
-                placeholder="https://example.com/avatar.jpg"
-                className="w-full bg-white px-4 py-3.5 rounded-xl border border-stone-200 focus:ring-1 focus:ring-[#2C5234] focus:border-[#2C5234] outline-none transition-all shadow-sm" />
-              <p className="text-xs text-stone-400 font-medium pl-1">Вставте пряме посилання на зображення.</p>
+              
+              <div className="flex items-center gap-3">
+                <button 
+                  type="button" 
+                  onClick={() => fileInputRef.current?.click()} 
+                  disabled={isUploadingImage}
+                  className="flex items-center gap-2 px-5 py-2.5 bg-white border border-stone-200 text-stone-700 rounded-xl hover:bg-stone-50 hover:border-stone-300 transition-all shadow-sm font-medium text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {isUploadingImage ? <Loader2 className="w-4 h-4 animate-spin text-stone-500" /> : <UploadCloud className="w-4 h-4 text-[#2C5234]" />}
+                  {isUploadingImage ? 'Завантажуємо...' : 'Обрати файл'}
+                </button>
+                
+                {/* Прихований інпут для файлу */}
+                <input 
+                  type="file" 
+                  ref={fileInputRef} 
+                  onChange={handleImageUpload} 
+                  accept="image/*" 
+                  className="hidden" 
+                />
+              </div>
+              
+              <p className="text-xs text-stone-400 font-medium pl-1">Рекомендовано: квадратне фото, до 5MB.</p>
             </div>
           </div>
 
