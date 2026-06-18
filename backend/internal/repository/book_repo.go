@@ -555,6 +555,7 @@ func (r *BookRepository) GetTrending(ctx context.Context, limit int) ([]models.B
 }
 
 func (r *BookRepository) GetNewest(ctx context.Context, limit int) ([]models.Book, error) {
+	// Додаємо WHERE, щоб виключити книги без дати видання
 	query := `
 		SELECT DISTINCT ON (e.publication_date, w.id)
 			w.id::text, w.title,
@@ -566,7 +567,7 @@ func (r *BookRepository) GetNewest(ctx context.Context, limit int) ([]models.Boo
 		LEFT JOIN editions e ON w.id = e.work_id
 		LEFT JOIN work_genres wg ON w.id = wg.work_id
 		LEFT JOIN genres g ON wg.genre_id = g.id
-		WHERE e.publication_date IS NOT NULL 
+		WHERE e.publication_date IS NOT NULL AND e.publication_date != ''
 		ORDER BY e.publication_date DESC NULLS LAST, w.id
 		LIMIT $1`
 

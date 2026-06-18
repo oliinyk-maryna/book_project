@@ -430,7 +430,14 @@ function BookModal({ book, onClose, onSaved }) {
 />
 
             <FormField label="Кількість стор." value={form.page_count} onChange={e => setForm(f => ({ ...f, page_count: e.target.value }))} type="number" />
-            <FormField label="Видавництво" value={form.publisher} onChange={e => setForm(f => ({ ...f, publisher: e.target.value }))} />
+            <AsyncTagInput 
+  label="Видавництво" 
+  tags={form.publisher ? [form.publisher] : []} // Перетворюємо рядок на масив для компонента
+  onChange={newTags => setForm(f => ({ ...f, publisher: newTags[0] || '' }))} // Беремо лише перший обраний елемент
+  placeholder="Почніть вводити назву..." 
+  searchUrl="/publishers/search?q=" // Ваш ендпоінт для пошуку
+  format="title" 
+/>
             <FormField label="Дата публікації" value={form.publication_date} onChange={e => setForm(f => ({ ...f, publication_date: e.target.value }))} type="date" />
           </div>
 

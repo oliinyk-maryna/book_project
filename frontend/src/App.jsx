@@ -161,18 +161,32 @@ export default function App() {
           {/* ── Основний контент ────────────────────────────────────── */}
           <main className="pt-[60px] pb-[72px] md:pb-4 md:pl-[200px] min-h-screen">
             <Routes>
-              <Route path="/" element={<HomePage {...sharedProps} />} />
-              <Route path="/discover" element={<DiscoverPage {...sharedProps} />} />
-              <Route path="/library" element={<LibraryPage {...sharedProps} />} />
-              <Route path="/clubs" element={<ClubsPage {...sharedProps} />} />
-              <Route path="/analytics" element={<AnalyticsPage {...sharedProps} />} />
-              <Route path="/profile" element={<ProfilePage {...sharedProps} handleLogout={handleLogout} />} />
-              <Route path="/settings" element={<SettingsPage {...sharedProps} fetchUserProfile={fetchUserProfile} />} />
-              <Route path="/book/:id" element={<BookPage {...sharedProps} />} />
-              <Route path="/admin" element={isAdmin ? <AdminPage /> : <Navigate to="/" replace />} />
-              {/* ... інші роути ... */}
-              <Route path="*" element={<div className="p-10 text-center">Сторінку не знайдено</div>} />
-            </Routes>
+  <Route path="/" element={<HomePage {...sharedProps} />} />
+  <Route path="/discover" element={<DiscoverPage {...sharedProps} />} />
+  <Route path="/library" element={<LibraryPage {...sharedProps} />} />
+  <Route path="/clubs" element={<ClubsPage {...sharedProps} />} />
+  <Route path="/analytics" element={<AnalyticsPage isLoggedIn={isLoggedIn} openAuthModal={openAuth} />} />
+  <Route path="/profile" element={<ProfilePage handleNavigate={handleNavigate} handleLogout={handleLogout} currentUser={currentUser} isLoggedIn={isLoggedIn} openAuthModal={openAuth} />} />
+  <Route path="/settings" element={<SettingsPage fetchUserProfile={fetchUserProfile} handleNavigate={handleNavigate} />} />
+  <Route path="/book/:id" element={<BookPage {...sharedProps} />} />
+  
+  {/* Відновлені маршрути */}
+  <Route path="/feed" element={<FeedPage isLoggedIn={isLoggedIn} currentUser={currentUser} handleNavigate={handleNavigate} openAuthModal={openAuth} />} />
+  <Route path="/tops" element={<TopsPage handleNavigate={handleNavigate} />} />
+  <Route path="/user/:id" element={<UserProfilePage isLoggedIn={isLoggedIn} currentUser={currentUser} handleNavigate={handleNavigate} />} />
+  <Route path="/reset-password" element={<ResetPasswordPage />} />
+  
+  {/* Адмінка */}
+  <Route path="/admin" element={isAdmin ? <AdminPage /> : <Navigate to="/" replace />} />
+  
+  <Route path="*" element={
+    <div className="flex flex-col items-center justify-center h-[70vh] gap-3">
+      <span className="font-display text-7xl font-bold" style={{ color:'var(--c-border)' }}>404</span>
+      <p style={{ color:'var(--c-text-3)' }}>Сторінку не знайдено</p>
+      <button onClick={() => navigate('/')} className="mt-2 px-6 py-2.5 rounded-full text-sm font-bold text-white" style={{ background:'var(--c-primary)' }}>На головну</button>
+    </div>
+  } />
+</Routes>
           </main>
 
           {/* ── Sidebar & Nav (залишаються як були) ───────────────── */}
