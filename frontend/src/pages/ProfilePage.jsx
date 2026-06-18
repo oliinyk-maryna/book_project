@@ -64,7 +64,7 @@ function ConnectionsModal({ type, userId, onClose, handleNavigate }) {
   useEffect(() => {
     if (query.trim().length < 1) {
       setIsSearching(false);
-      setSearchResults([]); // ВИПРАВЛЕНО ТУТ
+      setSearchResults([]);
       return;
     }
     
@@ -94,7 +94,7 @@ function ConnectionsModal({ type, userId, onClose, handleNavigate }) {
 
   return (
     <div
-      className="fixed inset-0 z-[9999] flex items-center justify-center p-4 sm:p-6 backdrop-blur-sm animate-in fade-in duration-200"
+      className="fixed top-0 left-0 w-full h-[100dvh] z-[9999] flex items-center justify-center p-4 sm:p-6 backdrop-blur-sm animate-in fade-in duration-200"
       style={{ background: 'rgba(0, 0, 0, 0.4)' }}
       onClick={onClose}
     >
@@ -103,7 +103,7 @@ function ConnectionsModal({ type, userId, onClose, handleNavigate }) {
         style={{
           background: 'var(--c-surface)',
           border: '1px solid var(--c-border)',
-          maxHeight: '80vh'
+          maxHeight: '75dvh' // Використовуємо безпечну динамічну висоту для мобільних
         }}
         onClick={e => e.stopPropagation()}
       >
@@ -190,7 +190,7 @@ function PersonRow({ person, onNavigate }) {
       </div>
       <div className="flex-1 min-w-0">
         <p className="text-sm font-bold truncate leading-snug" style={{ color:'var(--c-text)' }}>{person.username}</p>
-        {person.line && <p className="text-xs truncate" style={{ color:'var(--c-text-3)' }}>{person.bio}</p>}
+        {person.bio && <p className="text-xs truncate" style={{ color:'var(--c-text-3)' }}>{person.bio}</p>}
       </div>
       <button onClick={toggle}
         className="flex items-center gap-1 px-3 py-1.5 rounded-full text-[11px] font-bold shrink-0 transition-all"

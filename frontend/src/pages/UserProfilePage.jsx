@@ -3,7 +3,8 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { ArrowLeft, UserPlus, UserCheck, BookOpen, Loader2 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { userApi } from '../api/user.api';
-import { API_URL } from '../config';
+// ДОДАНО getImageUrl сюди:
+import { API_URL, getImageUrl } from '../config';
 
 export default function UserProfilePage({ isLoggedIn, currentUser, handleNavigate }) {
   const { id }    = useParams();
@@ -80,8 +81,9 @@ export default function UserProfilePage({ isLoggedIn, currentUser, handleNavigat
           
           <div className="w-24 h-24 rounded-full overflow-hidden flex items-center justify-center text-3xl font-bold font-serif text-white shadow-lg"
             style={{ background: profile.avatar_url ? 'transparent' : 'var(--c-primary)' }}>
+            {/* ВИПРАВЛЕНО: додано getImageUrl для аватарки */}
             {profile.avatar_url
-              ? <img src={profile.avatar_url} className="w-full h-full object-cover" onError={e=>e.target.style.display='none'} alt="" />
+              ? <img src={getImageUrl(profile.avatar_url)} className="w-full h-full object-cover" onError={e=>e.target.style.display='none'} alt="" />
               : profile.username?.[0]?.toUpperCase()}
           </div>
           
@@ -136,8 +138,9 @@ export default function UserProfilePage({ isLoggedIn, currentUser, handleNavigat
                   className="min-w-[110px] max-w-[110px] shrink-0 snap-start cursor-pointer group flex flex-col">
                   
                   <div className="w-full aspect-[2/3] rounded-xl overflow-hidden mb-2.5 transition-all duration-300 group-hover:-translate-y-1.5 group-hover:shadow-md border" style={{ background: 'var(--c-bg)', borderColor: 'var(--c-border-2)' }}>
+                    {/* ВИПРАВЛЕНО: додано getImageUrl для обкладинок книг */}
                     {book.cover_url
-                      ? <img src={book.cover_url} className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" alt={book.title} />
+                      ? <img src={getImageUrl(book.cover_url)} className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" alt={book.title} />
                       : <div className="w-full h-full flex items-center justify-center p-2 text-center">
                           <span className="font-serif text-[10px] leading-snug line-clamp-3" style={{ color: 'var(--c-text-3)' }}>{book.title}</span>
                         </div>}
