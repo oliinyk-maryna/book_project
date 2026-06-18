@@ -1,6 +1,15 @@
 import client from './client';
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080/api';
+let API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080/api';
+
+// Якщо URL закінчується на слеш (наприклад .app/), прибираємо його
+if (API_URL.endsWith('/')) {
+  API_URL = API_URL.slice(0, -1);
+}
+// Якщо в базовому URL немає /api, автоматично додаємо
+if (!API_URL.endsWith('/api')) {
+  API_URL += '/api';
+}
 
 export const authApi = {
   login: (credentials) => client('/login', { body: credentials }),

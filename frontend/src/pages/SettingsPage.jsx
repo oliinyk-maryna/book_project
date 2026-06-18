@@ -106,7 +106,6 @@ export default function SettingsPage({ fetchUserProfile, handleNavigate }) {
         </div>
 
         <div className="p-6 md:p-10 space-y-8">
-          
           {/* Блок Аватара */}
           <div className="flex flex-col sm:flex-row gap-6 items-start sm:items-center p-5 bg-stone-50 rounded-3xl border border-stone-100">
             {/* Сама картинка */}
@@ -117,7 +116,7 @@ export default function SettingsPage({ fetchUserProfile, handleNavigate }) {
                 <User className="w-10 h-10 text-stone-300" />
               )}
               
-              {/* Оверлей завантаження (якщо файл вантажиться зараз) */}
+              {/* Оверлей завантаження */}
               {isUploadingImage && (
                 <div className="absolute inset-0 bg-white/70 backdrop-blur-sm flex items-center justify-center">
                   <Loader2 className="w-6 h-6 animate-spin text-[#2C5234]" />
@@ -125,24 +124,25 @@ export default function SettingsPage({ fetchUserProfile, handleNavigate }) {
               )}
             </div>
 
-            {/* Кнопка завантаження */}
+            {/* Керування аватаром: Кнопка + Поле URL */}
             <div className="flex-1 w-full space-y-3">
               <label className="text-[11px] font-bold text-stone-500 uppercase tracking-widest flex items-center gap-2">
                 <ImageIcon className="w-4 h-4 text-[#2C5234]" /> Фото профілю
               </label>
               
-              <div className="flex items-center gap-3">
+              <div className="flex flex-col sm:flex-row gap-3">
+                {/* Кнопка завантаження файлу */}
                 <button 
                   type="button" 
                   onClick={() => fileInputRef.current?.click()} 
                   disabled={isUploadingImage}
-                  className="flex items-center gap-2 px-5 py-2.5 bg-white border border-stone-200 text-stone-700 rounded-xl hover:bg-stone-50 hover:border-stone-300 transition-all shadow-sm font-medium text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="flex items-center justify-center gap-2 px-5 py-2.5 bg-white border border-stone-200 text-stone-700 rounded-xl hover:bg-stone-50 hover:border-stone-300 transition-all shadow-sm font-medium text-sm disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
                 >
                   {isUploadingImage ? <Loader2 className="w-4 h-4 animate-spin text-stone-500" /> : <UploadCloud className="w-4 h-4 text-[#2C5234]" />}
-                  {isUploadingImage ? 'Завантажуємо...' : 'Обрати файл'}
+                  {isUploadingImage ? 'Завантаження...' : 'Обрати файл'}
                 </button>
                 
-                {/* Прихований інпут для файлу */}
+                {/* Прихований інпут */}
                 <input 
                   type="file" 
                   ref={fileInputRef} 
@@ -150,53 +150,22 @@ export default function SettingsPage({ fetchUserProfile, handleNavigate }) {
                   accept="image/*" 
                   className="hidden" 
                 />
+
+                {/* Поле для ручного вводу URL */}
+                <input 
+                  type="text" 
+                  value={user.avatar_url} 
+                  onChange={e => setUser({ ...user, avatar_url: e.target.value })}
+                  placeholder="Або вставте посилання (URL)"
+                  className="w-full bg-white px-4 py-2.5 rounded-xl border border-stone-200 focus:ring-1 focus:ring-[#2C5234] focus:border-[#2C5234] outline-none transition-all shadow-sm text-sm" 
+                />
               </div>
               
-              <p className="text-xs text-stone-400 font-medium pl-1">Рекомендовано: квадратне фото, до 5MB.</p>
+              <p className="text-xs text-stone-400 font-medium pl-1">
+                Завантажте фото з пристрою або вставте пряме посилання.
+              </p>
             </div>
           </div>
-
-          <div className="space-y-6">
-            {/* Нікнейм */}
-            <div className="space-y-2">
-              <label className="text-[11px] font-bold text-stone-500 uppercase tracking-widest flex items-center gap-2">
-                <User className="w-4 h-4 text-[#2C5234]" /> Нікнейм
-              </label>
-              <input type="text" value={user.username} onChange={e => setUser({ ...user, username: e.target.value })}
-                placeholder="Ваш нікнейм"
-                className="w-full bg-stone-50 focus:bg-white px-4 py-3.5 rounded-xl border border-stone-200 focus:ring-1 focus:ring-[#2C5234] focus:border-[#2C5234] outline-none transition-all shadow-sm font-medium text-stone-900" />
-            </div>
-
-            {/* Про себе */}
-            <div className="space-y-2">
-              <label className="text-[11px] font-bold text-stone-500 uppercase tracking-widest flex items-center gap-2">
-                <FileText className="w-4 h-4 text-[#2C5234]" /> Про себе
-              </label>
-              <textarea value={user.bio} onChange={e => setUser({ ...user, bio: e.target.value })}
-                placeholder="Розкажіть трохи про ваші книжкові смаки, улюблені жанри чи авторів..." rows={5}
-                className="w-full bg-stone-50 focus:bg-white px-4 py-4 rounded-xl border border-stone-200 focus:ring-1 focus:ring-[#2C5234] focus:border-[#2C5234] outline-none transition-all resize-none shadow-sm text-stone-900" />
-            </div>
-          </div>
-
-          <hr className="border-stone-100 my-8" />
-
-          {/* Нижня панель з кнопкою */}
-          <div className="flex flex-col-reverse sm:flex-row items-center justify-between gap-4">
-            <div className="w-full sm:w-auto flex justify-center sm:justify-start">
-              {saved && (
-                <span className="text-green-600 bg-green-50 px-4 py-2 rounded-xl text-sm font-bold flex items-center justify-center gap-2 animate-in fade-in slide-in-from-bottom-2 border border-green-100">
-                  <Check className="w-4 h-4" /> Успішно збережено
-                </span>
-              )}
-            </div>
-            
-            <button onClick={handleSave} disabled={isSaving || !user.username.trim()}
-              className="w-full sm:w-auto bg-[#2C5234] text-white px-8 py-3.5 rounded-xl font-bold hover:bg-[#1f3a25] transition-all disabled:bg-stone-300 disabled:cursor-not-allowed flex items-center justify-center gap-2 shadow-sm active:scale-95">
-              {isSaving ? <Loader2 className="w-5 h-5 animate-spin" /> : <Save className="w-5 h-5" />}
-              {isSaving ? 'Зберігаємо...' : 'Зберегти зміни'}
-            </button>
-          </div>
-
         </div>
       </div>
     </main>

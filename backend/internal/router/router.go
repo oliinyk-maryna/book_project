@@ -243,6 +243,7 @@ func NewRouter(db *pgxpool.Pool) http.Handler {
 	mux.Handle("POST /api/books/{id}/cover", middleware.Auth(http.HandlerFunc(bookHandler.UploadBookCover)))
 	// Завантаження фото профілю (потребує авторизації)
 	mux.Handle("POST /api/me/avatar", middleware.Auth(http.HandlerFunc(authHandler.UploadAvatar)))
+	mux.Handle("POST /api/admin/upload", middleware.Auth(http.HandlerFunc(adminHandler.UploadImage)))
 
 	return middleware.CORS(mux)
 
