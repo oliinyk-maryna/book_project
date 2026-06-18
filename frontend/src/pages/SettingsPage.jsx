@@ -5,6 +5,13 @@ import { authApi } from '../api/auth.api';
 
 export default function SettingsPage({ fetchUserProfile, handleNavigate }) {
   const [user, setUser] = useState({ username: '', bio: '', avatar_url: '' });
+  const getImageUrl = (url) => {
+    if (!url) return '';
+    if (url.startsWith('http')) return url;
+    
+    const baseUrl = API_URL.replace(/\/api\/?$/, ''); 
+    return `${baseUrl}${url}`;
+  };
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -111,7 +118,7 @@ export default function SettingsPage({ fetchUserProfile, handleNavigate }) {
             {/* Сама картинка */}
             <div className="relative w-24 h-24 sm:w-28 sm:h-28 rounded-full bg-white border border-stone-200 flex items-center justify-center overflow-hidden shrink-0 shadow-sm group">
               {user.avatar_url ? (
-                <img src={user.avatar_url} alt="Avatar" className="w-full h-full object-cover" />
+                <img src={getImageUrl(user.avatar_url)} alt="Avatar" className="w-full h-full object-cover" />
               ) : (
                 <User className="w-10 h-10 text-stone-300" />
               )}

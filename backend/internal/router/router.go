@@ -59,8 +59,6 @@ func NewRouter(db *pgxpool.Pool) http.Handler {
 
 	// ВИПРАВЛЕНО: Тепер SocialHandler отримує сервіс, а не репозиторій
 	socialHandler := handler.NewSocialHandler(socialService)
-
-	mux.Handle("/uploads/", http.StripPrefix("/uploads/", http.FileServer(http.Dir("./uploads"))))
 	// ════════════════════════════════════════════════════════════════════════
 	// АВТОРИЗАЦІЯ
 	// ════════════════════════════════════════════════════════════════════════
