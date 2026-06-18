@@ -64,7 +64,7 @@ function ConnectionsModal({ type, userId, onClose, handleNavigate }) {
   useEffect(() => {
     if (query.trim().length < 1) {
       setIsSearching(false);
-      setSearchResults([]);
+      searchResults([]);
       return;
     }
     
@@ -103,7 +103,7 @@ function ConnectionsModal({ type, userId, onClose, handleNavigate }) {
         style={{
           background: 'var(--c-surface)',
           border: '1px solid var(--c-border)',
-          maxHeight: '85vh'
+          maxHeight: '80vh'
         }}
         onClick={e => e.stopPropagation()}
       >
@@ -124,12 +124,15 @@ function ConnectionsModal({ type, userId, onClose, handleNavigate }) {
           </div>
         </div>
 
-        <div className="overflow-y-auto custom-scrollbar flex-1 p-2 space-y-1">
+        <div className="overflow-y-auto custom-scrollbar flex-1 p-2 space-y-0.5">
           {loading || isSearching ? (
-            Array.from({ length: 4 }).map((_, i) => (
-              <div key={i} className="flex items-center gap-3 px-3 py-2.5 animate-pulse">
-                <div className="w-9 h-9 rounded-full" style={{ background: 'var(--c-surface-2)' }} />
-                <div className="h-3 rounded w-32" style={{ background: 'var(--c-surface-2)' }} />
+            Array.from({ length: 5 }).map((_, i) => (
+              <div key={i} className="flex items-center gap-3 px-3 py-2 animate-pulse">
+                <div className="w-10 h-10 rounded-full" style={{ background: 'var(--c-surface-2)' }} />
+                <div className="flex-1 space-y-1.5">
+                  <div className="h-3 rounded w-24" style={{ background: 'var(--c-surface-2)' }} />
+                  <div className="h-2.5 rounded w-40" style={{ background: 'var(--c-surface-2)' }} />
+                </div>
               </div>
             ))
           ) : shown.length === 0 && !showRecoms ? (
@@ -137,13 +140,13 @@ function ConnectionsModal({ type, userId, onClose, handleNavigate }) {
           ) : (
             <>
               {showRecoms && (
-                <div className="text-center pb-4 pt-3">
-                  <p className="text-sm font-bold mb-5" style={{ color: 'var(--c-text-2)' }}>{emptyLabel}</p>
-                  <p className="text-[10px] font-bold uppercase tracking-wider text-left px-3 mb-2" style={{ color: 'var(--c-text-3)' }}>Можливо, ви знайомі:</p>
+                <div className="text-center pb-2 pt-3">
+                  <p className="text-sm font-bold mb-4" style={{ color: 'var(--c-text-2)' }}>{emptyLabel}</p>
+                  <p className="text-[10px] font-bold uppercase tracking-wider text-left px-3 mb-1" style={{ color: 'var(--c-text-3)' }}>Можливо, ви знайомі:</p>
                 </div>
               )}
               {(showRecoms ? recoms : shown).map(p => (
-                <div key={p.id} className="w-full block cursor-pointer">
+                <div key={p.id} className="w-full block">
                   <PersonRow person={p} onNavigate={() => { handleNavigate('user', p.id); onClose(); }} />
                 </div>
               ))}
@@ -178,15 +181,15 @@ function PersonRow({ person, onNavigate }) {
 
   return (
     <div onClick={onNavigate}
-      className="w-full flex items-center gap-3 px-3 py-2.5 rounded-2xl transition-colors hover:bg-[var(--c-bg)] text-left cursor-pointer">
-      <div className="w-20 h-20 rounded-full overflow-hidden">
-  {person.avatar_url 
-    ? <img src={getImageUrl(person.avatar_url)} className="w-full h-full object-cover" alt="" />
-    : <div className="w-full h-full flex items-center justify-center bg-stone-200">{person.username?.[0]?.toUpperCase()}</div>
-  }
-</div>
+      className="w-full flex items-center gap-3 px-3 py-2 rounded-xl transition-colors hover:bg-[var(--c-bg)] text-left cursor-pointer">
+      <div className="w-10 h-10 rounded-full overflow-hidden shrink-0">
+        {person.avatar_url 
+          ? <img src={getImageUrl(person.avatar_url)} className="w-full h-full object-cover" alt="" />
+          : <div className="w-full h-full flex items-center justify-center bg-stone-200 text-xs font-bold text-stone-600">{person.username?.[0]?.toUpperCase()}</div>
+        }
+      </div>
       <div className="flex-1 min-w-0">
-        <p className="text-sm font-bold truncate" style={{ color:'var(--c-text)' }}>{person.username}</p>
+        <p className="text-sm font-bold truncate leading-snug" style={{ color:'var(--c-text)' }}>{person.username}</p>
         {person.bio && <p className="text-xs truncate" style={{ color:'var(--c-text-3)' }}>{person.bio}</p>}
       </div>
       <button onClick={toggle}
