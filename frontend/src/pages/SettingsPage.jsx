@@ -166,6 +166,48 @@ export default function SettingsPage({ fetchUserProfile, handleNavigate }) {
               </p>
             </div>
           </div>
+
+          <div className="space-y-6">
+            {/* Нікнейм */}
+            <div className="space-y-2">
+              <label className="text-[11px] font-bold text-stone-500 uppercase tracking-widest flex items-center gap-2">
+                <User className="w-4 h-4 text-[#2C5234]" /> Нікнейм
+              </label>
+              <input type="text" value={user.username} onChange={e => setUser({ ...user, username: e.target.value })}
+                placeholder="Ваш нікнейм"
+                className="w-full bg-stone-50 focus:bg-white px-4 py-3.5 rounded-xl border border-stone-200 focus:ring-1 focus:ring-[#2C5234] focus:border-[#2C5234] outline-none transition-all shadow-sm font-medium text-stone-900" />
+            </div>
+
+            {/* Про себе */}
+            <div className="space-y-2">
+              <label className="text-[11px] font-bold text-stone-500 uppercase tracking-widest flex items-center gap-2">
+                <FileText className="w-4 h-4 text-[#2C5234]" /> Про себе
+              </label>
+              <textarea value={user.bio} onChange={e => setUser({ ...user, bio: e.target.value })}
+                placeholder="Розкажіть трохи про ваші книжкові смаки, улюблені жанри чи авторів..." rows={5}
+                className="w-full bg-stone-50 focus:bg-white px-4 py-4 rounded-xl border border-stone-200 focus:ring-1 focus:ring-[#2C5234] focus:border-[#2C5234] outline-none transition-all resize-none shadow-sm text-stone-900" />
+            </div>
+          </div>
+
+          <hr className="border-stone-100 my-8" />
+
+          {/* Нижня панель з кнопкою */}
+          <div className="flex flex-col-reverse sm:flex-row items-center justify-between gap-4">
+            <div className="w-full sm:w-auto flex justify-center sm:justify-start">
+              {saved && (
+                <span className="text-green-600 bg-green-50 px-4 py-2 rounded-xl text-sm font-bold flex items-center justify-center gap-2 animate-in fade-in slide-in-from-bottom-2 border border-green-100">
+                  <Check className="w-4 h-4" /> Успішно збережено
+                </span>
+              )}
+            </div>
+            
+            <button onClick={handleSave} disabled={isSaving || !user.username.trim()}
+              className="w-full sm:w-auto bg-[#2C5234] text-white px-8 py-3.5 rounded-xl font-bold hover:bg-[#1f3a25] transition-all disabled:bg-stone-300 disabled:cursor-not-allowed flex items-center justify-center gap-2 shadow-sm active:scale-95">
+              {isSaving ? <Loader2 className="w-5 h-5 animate-spin" /> : <Save className="w-5 h-5" />}
+              {isSaving ? 'Зберігаємо...' : 'Зберегти зміни'}
+            </button>
+          </div>
+
         </div>
       </div>
     </main>

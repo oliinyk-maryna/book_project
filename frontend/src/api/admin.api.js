@@ -1,5 +1,15 @@
 import client from './client';
 
+// 1. Створюємо безпечну змінну API_URL
+let API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080/api';
+
+if (API_URL.endsWith('/')) {
+  API_URL = API_URL.slice(0, -1);
+}
+if (!API_URL.endsWith('/api')) {
+  API_URL += '/api';
+}
+
 export const adminApi = {
   // ── Статистика ───────────────────────────────────────────────
   getStats: () => client('/admin/stats'),
@@ -8,7 +18,7 @@ export const adminApi = {
   getBooks: (page = 1, limit = 10, sort = 'created_at', order = 'DESC', q = '') =>
     client(`/admin/books?page=${page}&limit=${limit}&sort=${sort}&order=${order}&q=${encodeURIComponent(q)}`),
 
-  getBook: (id) => client(`/admin/books/${id}`), // Додано!
+  getBook: (id) => client(`/admin/books/${id}`), 
   
   createBook: (data) => client('/admin/books', { body: data }),
   updateBook: (id, data) => client(`/admin/books/${id}`, { method: 'PUT', body: data }),
@@ -34,15 +44,20 @@ export const adminApi = {
   uploadImage: async (file) => {
     const fd = new FormData();
     fd.append('image', file);
+    
     const token = localStorage.getItem('token');
-    const res = await fetch(
-      (import.meta.env.VITE_API_URL || 'http://localhost:8080/api') + '/admin/upload',
-      { method: 'POST', headers: { Authorization: `Bearer ${token}` }, body: fd }
-    );
+    
+    // 2. Використовуємо наш безпечний API_URL
+    const res = await fetch(`${API_URL}/admin/upload`, { 
+        method: 'POST', 
+        headers: { Authorization: `Bearer ${token}` }, 
+        body: fd 
+    });
     
     if (!res.ok) {
-      const errorText = await res.text();
-      throw new Error(errorText || 'Помилка завантаження'); 
+        const errText = await res.text();
+        throw new Error(errText || 'Помилка завантаження'); 
     }
+    return res.json();
   },
 };
