@@ -534,18 +534,21 @@ func (r *BookRepository) UpsertFromGoogle(ctx context.Context, book models.Book)
 
 func (r *BookRepository) GetTrending(ctx context.Context, limit int) ([]models.Book, error) {
 	rows, err := r.db.Query(ctx, `
-		SELECT DISTINCT ON (w.id)
+		SELECT
 			w.id::text, w.title,
 			COALESCE(a.name,'Невідомий автор'),
 			COALESCE(e.cover_url,''),
-			COALESCE(g.name,'')
+			COALESCE(
+				(SELECT g2.name FROM work_genres wg2
+				 JOIN genres g2 ON wg2.genre_id = g2.id
+				 WHERE wg2.work_id = w.id LIMIT 1),
+				''
+			)
 		FROM works w
 		LEFT JOIN authors a ON w.author_id=a.id
 		LEFT JOIN editions e ON w.id=e.work_id AND e.is_primary=true
-		LEFT JOIN work_genres wg ON w.id=wg.work_id
-		LEFT JOIN genres g ON wg.genre_id=g.id
 		WHERE w.total_ratings>0
-		ORDER BY w.id, w.average_rating DESC
+		ORDER BY w.average_rating DESC, w.total_ratings DESC
 		LIMIT $1`, limit)
 	if err != nil {
 		return nil, err
@@ -555,20 +558,24 @@ func (r *BookRepository) GetTrending(ctx context.Context, limit int) ([]models.B
 }
 
 func (r *BookRepository) GetNewest(ctx context.Context, limit int) ([]models.Book, error) {
-	// Додаємо WHERE, щоб виключити книги без дати видання
+	// Сортуємо за датою публікації видання (publication_date), а не за датою
+	// додавання запису в нашу базу — саме це мається на увазі під "найновіші".
 	query := `
-		SELECT DISTINCT ON (e.publication_date, w.id)
+		SELECT
 			w.id::text, w.title,
 			COALESCE(a.name, 'Невідомий автор'),
 			COALESCE(e.cover_url, ''),
-			COALESCE(g.name, '')
+			COALESCE(
+				(SELECT g2.name FROM work_genres wg2
+				 JOIN genres g2 ON wg2.genre_id = g2.id
+				 WHERE wg2.work_id = w.id LIMIT 1),
+				''
+			)
 		FROM works w
 		LEFT JOIN authors a ON w.author_id = a.id
-		LEFT JOIN editions e ON w.id = e.work_id
-		LEFT JOIN work_genres wg ON w.id = wg.work_id
-		LEFT JOIN genres g ON wg.genre_id = g.id
-		WHERE e.publication_date IS NOT NULL AND e.publication_date != ''
-		ORDER BY e.publication_date DESC NULLS LAST, w.id
+		LEFT JOIN editions e ON w.id = e.work_id AND e.is_primary = true
+		WHERE e.publication_date IS NOT NULL
+		ORDER BY e.publication_date DESC
 		LIMIT $1`
 
 	rows, err := r.db.Query(ctx, query, limit)

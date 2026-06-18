@@ -164,10 +164,6 @@ func NewRouter(db *pgxpool.Pool) http.Handler {
 	mux.HandleFunc("GET /api/users/{id}/followers", middleware.OptionalAuth(socialHandler.GetFollowers))
 	mux.HandleFunc("GET /api/users/{id}/following", middleware.OptionalAuth(socialHandler.GetFollowing))
 
-	// Стрічка активності (залишилась)
-	// Якщо метод GetFeed відсутній у новому SocialHandler
-	// mux.HandleFunc("GET /api/me/feed", middleware.Auth(socialHandler.GetFeed))
-
 	// ════════════════════════════════════════════════════════════════════════
 	// ОСОБИСТА АНАЛІТИКА
 	// ════════════════════════════════════════════════════════════════════════

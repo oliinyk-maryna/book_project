@@ -382,75 +382,80 @@ function BookModal({ book, onClose, onSaved }) {
           <button onClick={onClose} className="p-2 text-slate-400 hover:bg-slate-200 rounded-full transition-colors"><X className="w-5 h-5" /></button>
         </div>
 
-        <div className="p-6 overflow-y-auto custom-scrollbar space-y-4">
-          <div>
-            <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-2">Обкладинка</label>
-            <div className="flex gap-4 items-start">
-              <div className="w-16 h-24 bg-slate-100 rounded-lg overflow-hidden shrink-0 flex items-center justify-center border border-slate-200">
-                {form.cover_url
-                  ? <img src={form.cover_url} className="w-full h-full object-cover" alt="" onError={e => e.target.style.display='none'} />
-                  : <BookOpen className="w-6 h-6 text-slate-300" />
-                }
-              </div>
-              <div className="flex-1 space-y-2">
-                <input
-                  type="text"
-                  value={form.cover_url}
-                  onChange={e => setForm(f => ({ ...f, cover_url: e.target.value }))}
-                  placeholder="URL картинки..."
-                  className="w-full border border-slate-200 rounded-xl px-4 py-2.5 text-sm outline-none focus:border-indigo-400"
-                />
-                <label className="flex items-center justify-center gap-2 w-full py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-semibold text-slate-600 hover:bg-slate-100 cursor-pointer transition-colors">
-                  {uploading ? <Loader2 className="w-4 h-4 animate-spin" /> : <><UploadCloud className="w-4 h-4" /> Завантажити файл</>}
-                  <input type="file" accept="image/*" className="hidden" onChange={handleUpload} disabled={uploading} />
-                </label>
-              </div>
-            </div>
-          </div>
+        {/* Зміни у JSX частині */}
+<div className="p-6 overflow-y-auto flex-1 custom-scrollbar space-y-6">
+  {/* Блок з обкладинкою */}
+  <div>
+    <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-2">Обкладинка</label>
+    <div className="flex gap-4 items-start">
+      <div className="w-16 h-24 bg-slate-100 rounded-lg overflow-hidden shrink-0 flex items-center justify-center border border-slate-200">
+        {form.cover_url
+          ? <img src={form.cover_url} className="w-full h-full object-cover" alt="" onError={e => e.target.style.display='none'} />
+          : <BookOpen className="w-6 h-6 text-slate-300" />
+        }
+      </div>
+      <div className="flex-1 space-y-2">
+        <input
+          type="text"
+          value={form.cover_url}
+          onChange={e => setForm(f => ({ ...f, cover_url: e.target.value }))}
+          placeholder="URL картинки..."
+          className="w-full border border-slate-200 rounded-xl px-4 py-2.5 text-sm outline-none focus:border-indigo-400"
+        />
+        <label className="flex items-center justify-center gap-2 w-full py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-semibold text-slate-600 hover:bg-slate-100 cursor-pointer transition-colors">
+          {uploading ? <Loader2 className="w-4 h-4 animate-spin" /> : <><UploadCloud className="w-4 h-4" /> Завантажити файл</>}
+          <input type="file" accept="image/*" className="hidden" onChange={handleUpload} disabled={uploading} />
+        </label>
+      </div>
+    </div>
+  </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <FormField label="Назва *" value={form.title} onChange={e => setForm(f => ({ ...f, title: e.target.value }))} />
-            
-            <AsyncTagInput 
-  label="Автор(и) *" 
-  tags={form.authors} 
-  onChange={newTags => setForm(f => ({ ...f, authors: newTags }))} 
-  placeholder="Стівен Кінг..." 
-  searchUrl="/authors/search?q="
-  format="title" 
-/>
+  {/* Поля вводу */}
+  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+    <FormField label="Назва *" value={form.title} onChange={e => setForm(f => ({ ...f, title: e.target.value }))} />
+    
+    <AsyncTagInput 
+      label="Автор(и) *" 
+      tags={form.authors} 
+      onChange={newTags => setForm(f => ({ ...f, authors: newTags }))} 
+      placeholder="Стівен Кінг..." 
+      searchUrl="/authors/search?q="
+      format="title" 
+    />
 
-<AsyncTagInput 
-  label="Жанри" 
-  tags={form.genres} 
-  onChange={newTags => setForm(f => ({ ...f, genres: newTags }))} 
-  placeholder="Фентезі..." 
-  searchUrl="/genres/search?q="
-  format="sentence" 
-/>
+    <AsyncTagInput 
+      label="Жанри" 
+      tags={form.genres} 
+      onChange={newTags => setForm(f => ({ ...f, genres: newTags }))} 
+      placeholder="Фентезі..." 
+      searchUrl="/genres/search?q="
+      format="sentence" 
+    />
 
-            <FormField label="Кількість стор." value={form.page_count} onChange={e => setForm(f => ({ ...f, page_count: e.target.value }))} type="number" />
-            <AsyncTagInput 
-  label="Видавництво" 
-  tags={form.publisher ? [form.publisher] : []} // Перетворюємо рядок на масив для компонента
-  onChange={newTags => setForm(f => ({ ...f, publisher: newTags[0] || '' }))} // Беремо лише перший обраний елемент
-  placeholder="Почніть вводити назву..." 
-  searchUrl="/publishers/search?q=" // Ваш ендпоінт для пошуку
-  format="title" 
-/>
-            <FormField label="Дата публікації" value={form.publication_date} onChange={e => setForm(f => ({ ...f, publication_date: e.target.value }))} type="date" />
-          </div>
+    <AsyncTagInput 
+      label="Видавництво" 
+      tags={form.publisher ? [form.publisher] : []} 
+      onChange={newTags => setForm(f => ({ ...f, publisher: newTags.length > 0 ? newTags[newTags.length - 1] : '' }))} 
+      placeholder="Пошук видавництва..." 
+      searchUrl="/publishers/search?q="
+      format="title" 
+    />
 
-          <div>
-            <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">Опис</label>
-            <textarea
-              value={form.description}
-              onChange={e => setForm(f => ({ ...f, description: e.target.value }))}
-              rows={3}
-              className="w-full border border-slate-200 rounded-xl px-4 py-2.5 text-sm outline-none focus:border-indigo-400 resize-none"
-            />
-          </div>
-        </div>
+    <FormField label="Кількість стор." value={form.page_count} onChange={e => setForm(f => ({ ...f, page_count: e.target.value }))} type="number" />
+    <FormField label="Дата публікації" value={form.publication_date} onChange={e => setForm(f => ({ ...f, publication_date: e.target.value }))} type="date" />
+  </div>
+
+  {/* Блок опису тепер розтягується */}
+  <div className="flex flex-col flex-1">
+    <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">Опис</label>
+    <textarea
+      value={form.description}
+      onChange={e => setForm(f => ({ ...f, description: e.target.value }))}
+      className="w-full flex-1 min-h-[150px] border border-slate-200 rounded-xl px-4 py-3 text-sm outline-none focus:border-indigo-400 resize-y"
+      placeholder="Додайте опис книги..."
+    />
+  </div>
+</div>
 
         <div className="p-4 border-t border-slate-100 bg-slate-50 rounded-b-2xl flex justify-end gap-3">
           <button onClick={onClose} className="px-5 py-2.5 rounded-xl text-sm font-semibold text-slate-600 hover:bg-slate-200">Скасувати</button>
@@ -856,7 +861,6 @@ useEffect(() => {
                             <div className="col-span-2">
                               <select value={u.role || u.Role || 'user'} onChange={e => changeRole(u.id || u.ID, e.target.value)} className={`text-xs font-bold px-2.5 py-1.5 rounded-lg border-0 outline-none cursor-pointer transition-colors ${roleColors[u.role || u.Role] || roleColors.user}`}>
                                 <option value="user">user</option>
-                                <option value="moderator">moderator</option>
                                 <option value="admin">admin</option>
                               </select>
                             </div>
