@@ -547,8 +547,8 @@ end_date:     bd.finished_at ? String(bd.finished_at).substring(0, 10) : '',
   const TABS = [
     { id: 'info',  label: 'Інформація', icon: Info },
     { id: 'shelf', label: 'Полиця',     icon: Bookmark },
-    { id: 'clubs', label: 'Спільноти',  icon: Users },
-  ];
+    isLoggedIn ? { id: 'clubs', label: 'Спільноти',  icon: Users } : null,
+  ].filter(Boolean);
 
   return (
     <>
