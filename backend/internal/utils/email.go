@@ -7,28 +7,33 @@ import (
 	"github.com/resend/resend-go/v2"
 )
 
-// Зверніть увагу: назва функції тепер починається з великої літери
-func SendResetEmail(userEmail string, resetToken string) error {
+func SendResetEmail(toEmail, code string) error {
 	apiKey := os.Getenv("RESEND_API_KEY")
 	client := resend.NewClient(apiKey)
 
-	// 1. Вказуємо ваш новий верифікований домен
 	fromEmail := "support@readlongue.pp.ua"
 
-	// 2. Вказуємо реальну адресу вашого проєкту на Railway
-	// Замініть 'your-app-name.up.railway.app' на ваш справжній лінк
-	resetLink := fmt.Sprintf("https://your-app-name.up.railway.app/reset-password?token=%s", resetToken)
+	htmlContent := fmt.Sprintf(`
+		<div style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:32px 24px;background:#FDFBF7;border-radius:16px;">
+			<h2 style="color:#2C5234;margin-bottom:8px;">Відновлення пароля</h2>
+			<p style="color:#57534e;font-size:15px;">Введіть цей код у вікні ReadLounge, щоб встановити новий пароль:</p>
+			<div style="text-align:center;margin:32px 0;">
+				<span style="display:inline-block;font-size:42px;font-weight:800;letter-spacing:12px;color:#2C5234;background:#f0fdf4;padding:16px 28px;border-radius:12px;border:2px dashed #86efac;">%s</span>
+			</div>
+			<p style="color:#78716c;font-size:13px;">Код дійсний протягом <strong>15 хвилин</strong>. Якщо ви не робили цього запиту — просто проігноруйте лист.</p>
+		</div>
+	`, code)
 
 	params := &resend.SendEmailRequest{
 		From:    fromEmail,
-		To:      []string{userEmail},
-		Subject: "Відновлення паролю",
-		Html:    fmt.Sprintf("<p>Для відновлення паролю перейдіть за цим <a href='%s'>посиланням</a>.</p>", resetLink),
+		To:      []string{toEmail},
+		Subject: "Відновлення пароля ReadLounge",
+		Html:    htmlContent,
 	}
 
 	sent, err := client.Emails.Send(params)
 	if err != nil {
-		return fmt.Errorf("помилка відправки листа: %v", err)
+		return fmt.Errorf("помилка відправки листа через Resend: %w", err)
 	}
 
 	fmt.Printf("Лист успішно відправлено! ID: %s\n", sent.Id)
