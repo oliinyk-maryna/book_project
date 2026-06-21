@@ -978,13 +978,23 @@ end_date:     bd.finished_at ? String(bd.finished_at).substring(0, 10) : '',
                           Детальніше
                         </button>
 
-                        <button
-                          onClick={() => handleJoinClub(club.id)}
-                          className="px-4 py-2 rounded-xl text-xs font-bold text-white transition-opacity hover:opacity-90"
-                          style={{ background: 'var(--c-primary)' }}
-                        >
-                          Приєднатися
-                        </button>
+                        {club.is_member ? (
+  <button
+    disabled
+    className="px-4 py-2 rounded-xl text-xs font-bold cursor-not-allowed"
+    style={{ background: 'var(--c-primary-muted)', color: 'var(--c-primary)' }}
+  >
+    ✓ Учасник
+  </button>
+) : (
+  <button
+    onClick={() => handleJoinClub(club.id)}
+    className="px-4 py-2 rounded-xl text-xs font-bold text-white transition-opacity hover:opacity-90"
+    style={{ background: 'var(--c-primary)' }}
+  >
+    Приєднатися
+  </button>
+)}
                       </div>
                     </div>
                   </div>
@@ -1100,16 +1110,28 @@ end_date:     bd.finished_at ? String(bd.finished_at).substring(0, 10) : '',
               >
                 Закрити
               </button>
-              <button
-                onClick={() => {
-                  handleJoinClub(selectedClubInfo.id);
-                  setSelectedClubInfo(null);
-                }}
-                className="px-5 py-2.5 rounded-xl text-xs font-bold text-white transition-opacity hover:opacity-90"
-                style={{ background: 'var(--c-primary)' }}
-              >
-                Приєднатися до клубу
-              </button>
+              {/* Замість кнопки <button onClick={() => { handleJoinClub... }} ...> */}
+
+{selectedClubInfo.is_member ? (
+  <button
+    disabled
+    className="px-5 py-2.5 rounded-xl text-xs font-bold cursor-not-allowed"
+    style={{ background: 'var(--c-primary-muted)', color: 'var(--c-primary)' }}
+  >
+    ✓ Ви учасник клубу
+  </button>
+) : (
+  <button
+    onClick={() => {
+      handleJoinClub(selectedClubInfo.id);
+      setSelectedClubInfo(null);
+    }}
+    className="px-5 py-2.5 rounded-xl text-xs font-bold text-white transition-opacity hover:opacity-90"
+    style={{ background: 'var(--c-primary)' }}
+  >
+    Приєднатися до клубу
+  </button>
+)}
             </div>
           </div>
         </div>

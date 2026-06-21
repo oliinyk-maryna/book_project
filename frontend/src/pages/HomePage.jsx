@@ -144,8 +144,9 @@ fetch(`${API_URL}/newest?limit=10`),
           
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-6">
             {reading.slice(0, 2).map(book => {
-              const maxPages = book.page_count || book.total_pages || 0;
-              const pct = maxPages > 0 ? Math.round((book.current_page / maxPages) * 100) : 0;
+              const maxPages = Number(book.page_count || book.total_pages || 0);
+const currentPage = Number(book.current_page || 0);
+const pct = maxPages > 0 ? Math.round((currentPage / maxPages) * 100) : 0;
               return (
                 <div key={book.id} onClick={() => handleNavigate('book', book.id)} className="flex items-center gap-4 md:gap-6 p-4 md:p-5 rounded-3xl cursor-pointer group transition-all hover:-translate-y-1 hover:shadow-md border" style={{ background: 'var(--c-surface)', borderColor: 'var(--c-border)' }}>
                   
@@ -162,8 +163,8 @@ fetch(`${API_URL}/newest?limit=10`),
                       <div className="h-full rounded-full transition-all duration-1000 ease-out" style={{ width: `${pct}%`, background: 'var(--c-primary)' }} />
                     </div>
                     <p className="text-[10px] font-bold mt-2" style={{ color: 'var(--c-text-3)' }}>
-                      {book.current_page} з {maxPages || '?'} сторінок
-                    </p>
+  {currentPage} з {maxPages || '?'} сторінок
+</p>
                   </div>
                   
                   <div className="hidden sm:flex w-10 h-10 rounded-full items-center justify-center shrink-0 transition-colors" style={{ background: 'var(--c-bg)', color: 'var(--c-primary)' }}>
