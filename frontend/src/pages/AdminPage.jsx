@@ -840,37 +840,39 @@ useEffect(() => {
                           <div className="col-span-1 text-right">Дії</div>
                         </div>
                        {books.map(b => {
-  // 1. Отримуємо значення з будь-якого з можливих полів
-  const rawData = b.genres || b.Genres || b.category || b.Category;
+  // Пріоритет: спочатку genres, якщо пусто — беремо category
+  const rawData = b.genres || b.category || '';
   
-  let genresList = [];
-  if (Array.isArray(rawData)) {
-    genresList = rawData;
-  } else if (typeof rawData === 'string') {
-    genresList = rawData.split(',').map(s => s.trim()).filter(s => s !== '' && s !== 'Не вказано' && s !== 'Без категорії');
-  }
+  // Перетворюємо у масив
+  const genresList = typeof rawData === 'string' 
+    ? rawData.split(',').map(s => s.trim()).filter(Boolean)
+    : (Array.isArray(rawData) ? rawData : []);
   
   const pages = b.page_count || b.PageCount || '—';
   
   return (
     <div key={b.id || b.ID} className="grid grid-cols-12 gap-3 px-6 py-3 items-center hover:bg-slate-50 transition-colors">
+      {/* ... (ваш код заголовка книги) */}
       <div className="col-span-4 flex items-center gap-3 min-w-0">
         <div className="w-8 h-11 bg-slate-100 rounded-md overflow-hidden shrink-0 border border-slate-200">
-          {(b.cover_url || b.CoverURL) && <img src={b.cover_url || b.CoverURL} className="w-full h-full object-cover" alt="" onError={e => e.target.style.display='none'} />}
+           {(b.cover_url || b.CoverURL) && <img src={b.cover_url || b.CoverURL} className="w-full h-full object-cover" alt="" onError={e => e.target.style.display='none'} />}
         </div>
         <span className="font-semibold text-slate-900 text-sm truncate">{b.title || b.Title}</span>
       </div>
       
       <div className="col-span-3 text-sm text-slate-600 truncate">
-        {Array.isArray(b.authors) ? b.authors.join(', ') : (b.authors || b.author || b.Author || '—')}
+        {Array.isArray(b.authors) ? b.authors.join(', ') : (b.authors || '—')}
       </div>
       
+      {/* ВИВІД ЖАНРІВ */}
       <div className="col-span-3 flex flex-wrap gap-1 max-h-12 overflow-hidden">
-        {genresList.length > 0 ? genresList.map((g, i) => (
-          <span key={i} className="bg-indigo-50/60 border border-indigo-100 text-[10px] text-indigo-600 font-bold px-1.5 py-0.5 rounded-md">
-            {g}
-          </span>
-        )) : (
+        {genresList.length > 0 ? (
+          genresList.map((g, i) => (
+            <span key={i} className="bg-indigo-50/60 border border-indigo-100 text-[10px] text-indigo-600 font-bold px-1.5 py-0.5 rounded-md whitespace-nowrap">
+              {g}
+            </span>
+          ))
+        ) : (
           <span className="text-slate-300 text-xs">—</span>
         )}
       </div>
