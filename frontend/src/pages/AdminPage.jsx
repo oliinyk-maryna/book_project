@@ -3,7 +3,7 @@ import {
   BookOpen, Users, Shield, Activity, Star, Users2,
   Trash2, Edit2, Plus, Loader2, RefreshCw, X,
   AlertTriangle, ChevronRight, ChevronLeft,
-  UploadCloud, Inbox, Lock, Globe, Check, BarChart3, Server
+  UploadCloud, Inbox, Lock, Globe, Check, BarChart3, TrendingUp
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { adminApi } from '../api/admin.api';
@@ -624,8 +624,6 @@ useEffect(() => {
     { id: 'clubs',     label: 'Спільноти',           icon: Users2   },
   ];
 
-  const totalBooksCount = stats?.total_books || 0;
-
   return (
     <div className="flex flex-col md:flex-row h-screen bg-slate-50 font-sans overflow-hidden">
       <aside className="w-full md:w-60 bg-white border-b md:border-r border-slate-200 flex flex-col shadow-sm shrink-0 h-auto md:h-full z-10">
@@ -693,82 +691,80 @@ useEffect(() => {
                 ))}
               </div>
 
-              {/* Нижня секція дашборду */}
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                
-                {/* БЛОК 1: Жанри */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm flex flex-col">
-                  <div className="flex items-center gap-3 mb-6">
-                    <div className="p-2.5 bg-indigo-50 rounded-xl">
-                      <BarChart3 className="w-5 h-5 text-indigo-600" />
-                    </div>
-                    <div>
-                      <h3 className="font-bold text-base text-slate-900">Популярні Жанри</h3>
-                      <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">За вподобаннями</p>
-                    </div>
+                  <div className="flex items-center gap-2 mb-4">
+                    <BarChart3 className="w-4 h-4 text-indigo-600" />
+                    <h3 className="font-bold text-sm text-slate-800">Популярні жанри каталогу</h3>
                   </div>
-                  <div className="space-y-4 flex-1 justify-center flex flex-col">
-                    {[
-                      { name: 'Фентезі & Фантастика', percentage: '78%', count: totalBooksCount ? Math.round(totalBooksCount * 0.4) : 42, color: 'bg-indigo-600' },
-                      { name: 'Психологія & Саморозвиток', percentage: '54%', count: totalBooksCount ? Math.round(totalBooksCount * 0.25) : 26, color: 'bg-emerald-500' },
-                      { name: 'Детективи & Трилери', percentage: '41%', count: totalBooksCount ? Math.round(totalBooksCount * 0.18) : 19, color: 'bg-amber-500' },
-                      { name: 'Сучасна проза', percentage: '29%', count: totalBooksCount ? Math.round(totalBooksCount * 0.12) : 12, color: 'bg-rose-500' },
-                    ].map(g => (
-                      <div key={g.name} className="space-y-1.5">
-                        <div className="flex justify-between text-sm font-semibold text-slate-700">
-                          <span>{g.name}</span>
-                          <span className="text-slate-400">{g.count} кн. ({g.percentage})</span>
-                        </div>
-                        <div className="w-full bg-slate-100 h-2.5 rounded-full overflow-hidden">
-                          <div className={`h-full ${g.color} rounded-full transition-all duration-700`} style={{ width: g.percentage }} />
-                        </div>
-                      </div>
-                    ))}
+                  <div className="space-y-3 flex-1 justify-center flex flex-col">
+                    {(() => {
+                      const genres = stats?.top_genres || [];
+                      if (genres.length === 0) {
+                        return <p className="text-xs text-slate-400 text-center py-4">Жанрів поки немає</p>;
+                      }
+                      const maxCount = Math.max(...genres.map(g => g.book_count || 0), 1);
+                      const colors = ['bg-indigo-600', 'bg-emerald-500', 'bg-amber-500', 'bg-rose-500', 'bg-violet-500', 'bg-cyan-500', 'bg-orange-500', 'bg-teal-500'];
+                      return genres.slice(0, 6).map((g, i) => {
+                        const pct = Math.round((g.book_count / maxCount) * 100);
+                        return (
+                          <div key={g.name} className="space-y-1">
+                            <div className="flex justify-between text-xs font-semibold text-slate-600">
+                              <span>{g.name}</span>
+                              <span className="text-slate-400">{g.book_count} кн. ({pct}%)</span>
+                            </div>
+                            <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden">
+                              <div className={`h-full ${colors[i % colors.length]} rounded-full transition-all duration-500`} style={{ width: `${pct}%` }} />
+                            </div>
+                          </div>
+                        );
+                      });
+                    })()}
                   </div>
                 </div>
 
-                {/* БЛОК 2: Графік реєстрацій (Фронтенд-імітація) */}
                 <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm flex flex-col">
-                  <div className="flex items-center gap-3 mb-6">
-                    <div className="p-2.5 bg-emerald-50 rounded-xl">
-                      <Activity className="w-5 h-5 text-emerald-600" />
-                    </div>
-                    <div>
-                      <h3 className="font-bold text-base text-slate-900">Динаміка реєстрацій</h3>
-                      <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Нові читачі (7 днів)</p>
-                    </div>
+                  <div className="flex items-center gap-2 mb-4">
+                    <TrendingUp className="w-4 h-4 text-emerald-600" />
+                    <h3 className="font-bold text-sm text-slate-800">Нові користувачі (30 днів)</h3>
                   </div>
-                  
-                  {/* Контейнер графіка */}
-                  <div className="flex-1 flex items-end justify-between gap-2 h-48 mt-2 pb-2">
-                    {[
-                      { day: 'Пн', count: 4, height: '25%' },
-                      { day: 'Вв', count: 7, height: '40%' },
-                      { day: 'Ср', count: 12, height: '65%' },
-                      { day: 'Чт', count: 9, height: '50%' },
-                      { day: 'Пт', count: 15, height: '80%' },
-                      { day: 'Сб', count: 22, height: '100%' }, // Найвищий показник
-                      { day: 'Нд', count: 18, height: '85%' },
-                    ].map((item, i) => (
-                      <div key={i} className="flex flex-col items-center gap-2 flex-1 h-full justify-end group">
-                        {/* Значення над стовпчиком (з'являється при наведенні на ПК, або видно блідо на моб.) */}
-                        <span className="text-[10px] font-bold text-slate-400 group-hover:text-emerald-600 transition-colors mb-1">
-                          {item.count}
-                        </span>
-                        
-                        {/* Сам стовпчик */}
-                        <div 
-                          className="w-full max-w-[40px] bg-emerald-100 rounded-t-lg group-hover:bg-emerald-500 transition-all duration-300 cursor-default" 
-                          style={{ height: item.height }}
-                        ></div>
-                        
-                        {/* Підпис дня тижня */}
-                        <span className="text-xs font-semibold text-slate-500">{item.day}</span>
+                  {(() => {
+                    const daily = stats?.daily_new_users || [];
+                    if (daily.length === 0) {
+                      return <p className="text-xs text-slate-400 text-center py-8">Немає даних за цей період</p>;
+                    }
+                    const maxVal = Math.max(...daily.map(d => d.count), 1);
+                    const chartH = 80;
+                    const w = 100 / Math.max(daily.length, 1);
+                    return (
+                      <div className="flex-1 flex flex-col gap-2">
+                        <div className="flex items-end gap-0.5 h-20 w-full">
+                          {daily.map((d, i) => {
+                            const barH = Math.max(Math.round((d.count / maxVal) * chartH), 2);
+                            const label = d.day ? d.day.slice(5) : '';
+                            return (
+                              <div key={i} className="flex-1 flex flex-col items-center justify-end group relative">
+                                <div
+                                  className="w-full bg-emerald-500 hover:bg-emerald-600 rounded-sm transition-all duration-200 cursor-default"
+                                  style={{ height: `${barH}%` }}
+                                />
+                                <div className="absolute -top-7 left-1/2 -translate-x-1/2 hidden group-hover:flex bg-slate-800 text-white text-[10px] px-2 py-1 rounded-lg whitespace-nowrap z-10 shadow-lg">
+                                  {label}: {d.count}
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                        <div className="flex justify-between text-[10px] text-slate-400 font-medium px-0.5">
+                          <span>{daily[0]?.day?.slice(5) || ''}</span>
+                          <span>{daily[Math.floor(daily.length / 2)]?.day?.slice(5) || ''}</span>
+                          <span>{daily[daily.length - 1]?.day?.slice(5) || ''}</span>
+                        </div>
+                        <p className="text-[10px] text-slate-400 text-center">Наведіть на стовпець для деталей</p>
                       </div>
-                    ))}
-                  </div>
+                    );
+                  })()}
                 </div>
-
               </div>
             </div>
           )}
