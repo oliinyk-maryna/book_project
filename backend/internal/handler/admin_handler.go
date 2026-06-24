@@ -227,7 +227,7 @@ func (h *AdminHandler) GetSiteStats(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Беремо базові лічильники з репозиторію книг
+	// 1. Беремо базові лічильники з репозиторію книг
 	stats, err := h.bookRepo.AdminGetPlatformStats(r.Context())
 	if err != nil {
 		http.Error(w, "Помилка базової статистики", http.StatusInternalServerError)
@@ -235,40 +235,63 @@ func (h *AdminHandler) GetSiteStats(w http.ResponseWriter, r *http.Request) {
 	}
 
 	response := map[string]interface{}{
-		"total_books":       stats["total_books"],
-		"total_users":       stats["total_users"],
-		"total_reviews":     stats["total_reviews"],
-		"total_clubs":       stats["total_clubs"],
-		"new_users_30d":     stats["new_users_30d"],
-		"new_reviews_30d":   stats["new_reviews_30d"],
-		"active_readers_7d": stats["active_readers_7d"],
+		"total_books":     stats["total_books"],
+		"total_users":     stats["total_users"],
+		"total_reviews":   stats["total_reviews"],
+		"total_clubs":     stats["total_clubs"],
+		"new_users_30d":   stats["new_users_30d"],
+		"new_reviews_30d": stats["new_reviews_30d"],
+		// Тимчасово 0, нижче ми запишемо сюди нові реєстрації за 7 днів
+		"active_readers_7d": 0,
 		"system_status":     "Healthy",
 		"last_updated":      time.Now().Format("15:04:05"),
 	}
 
 	// ЗАПОВНЮЄМО БЛОК АНАЛІТИКИ:
 	if h.analyticsRepo != nil {
-		// Отримуємо жанри
-		genres, err := h.analyticsRepo.GetGenreStats(r.Context())
-		if err == nil && genres != nil {
-			response["genres"] = genres 
-		} else {
-			// Якщо помилка або даних немає, віддаємо порожній масив, щоб графік не впав
-			response["genres"] = []interface{}{} 
+
+		// 2. ВИПРАВЛЕННЯ ДЛЯ 7 ДНІВ: Отримуємо суму нових реєстрацій за останні 7 днів
+		newUsers7d, err := h.analyticsRepo.GetNewUsers7Days(r.Context())
+		if err == nil {
+			// Записуємо в цей ключ, щоб оригінальна картка на фронтенді відобразила цифру
+			response["active_readers_7d"] = newUsers7d
 		}
 
-		// Отримуємо графік реєстрацій
+		// 3. ВИПРАВЛЕННЯ ДЛЯ ЖАНРІВ: адаптуємо під stats?.top_genres та g.book_count
+		genres, err := h.analyticsRepo.GetGenreStats(r.Context())
+		if err == nil && genres != nil {
+			topGenres := make([]map[string]interface{}, 0)
+			for _, g := range genres {
+				topGenres = append(topGenres, map[string]interface{}{
+					"name":       g["name"],
+					"book_count": g["count"], // міняємо 'count' на 'book_count' для JSX
+				})
+			}
+			response["top_genres"] = topGenres
+		} else {
+			response["top_genres"] = []interface{}{}
+		}
+
+		// 4. ВИПРАВЛЕННЯ ДЛЯ ДИНАМІКИ: адаптуємо під stats?.daily_new_users та dataKey="day"
 		userGrowth, err := h.analyticsRepo.GetUserGrowth(r.Context())
 		if err == nil && userGrowth != nil {
-			response["user_growth"] = userGrowth
+			dailyNewUsers := make([]map[string]interface{}, 0)
+			for _, ug := range userGrowth {
+				dailyNewUsers = append(dailyNewUsers, map[string]interface{}{
+					"day":   ug["date"], // міняємо 'date' на 'day' для JSX
+					"count": ug["count"],
+				})
+			}
+			response["daily_new_users"] = dailyNewUsers
 		} else {
-			response["user_growth"] = []interface{}{}
+			response["daily_new_users"] = []interface{}{}
 		}
 	}
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(response)
 }
+
 // DELETE /api/admin/users/{id}
 func (h *AdminHandler) DeleteUser(w http.ResponseWriter, r *http.Request) {
 	if !adminCheck(r) {

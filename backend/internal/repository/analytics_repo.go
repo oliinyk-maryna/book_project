@@ -566,3 +566,55 @@ func (r *AnalyticsRepository) GetUserGrowth(ctx context.Context) ([]map[string]i
 	}
 	return stats, nil
 }
+
+func (r *AnalyticsRepository) GetNewUsers7Days(ctx context.Context) (int, error) {
+	var count int
+	query := `SELECT COUNT(*) FROM users WHERE created_at >= CURRENT_DATE - INTERVAL '7 days'`
+	err := r.db.QueryRow(ctx, query).Scan(&count)
+	if err != nil {
+		return 0, err
+	}
+	return count, nil
+}
+
+// GetPlatformStats — збирає всі головні лічильники адмін-панелі за один запит
+func (r *AnalyticsRepository) GetPlatformStats(ctx context.Context) (map[string]interface{}, error) {
+	stats := make(map[string]interface{})
+
+	// Оптимальний запит: збираємо підрахунки з різних таблиць через вкладені SELECT
+	query := `
+		SELECT 
+			(SELECT COUNT(*) FROM works) as total_books,
+			(SELECT COUNT(*) FROM users) as total_users,
+			(SELECT COUNT(*) FROM groups) as total_clubs,
+			(SELECT COUNT(*) FROM work_reviews) as total_reviews,
+			(SELECT COUNT(*) FROM users WHERE created_at >= CURRENT_DATE - INTERVAL '30 days') as new_users_30d,
+			(SELECT COUNT(*) FROM work_reviews WHERE created_at >= CURRENT_DATE - INTERVAL '30 days') as new_reviews_30d,
+			(SELECT COUNT(*) FROM users WHERE created_at >= CURRENT_DATE - INTERVAL '7 days') as new_users_7d;
+	`
+
+	var totalBooks, totalUsers, totalClubs, totalReviews int
+	var newUsers30d, newReviews30d, newUsers7d int
+
+	err := r.db.QueryRow(ctx, query).Scan(
+		&totalBooks, &totalUsers, &totalClubs, &totalReviews,
+		&newUsers30d, &newReviews30d, &newUsers7d,
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	// Заповнюємо мапу даними відповідно до очікувань вашого фронтенду
+	stats["total_books"] = totalBooks
+	stats["total_users"] = totalUsers
+	stats["total_clubs"] = totalClubs
+	stats["total_reviews"] = totalReviews
+	stats["new_users_30d"] = newUsers30d
+	stats["new_reviews_30d"] = newReviews30d
+
+	// ХИТРІСТЬ: Записуємо нові реєстрації за 7 днів у ключ active_readers_7d,
+	// щоб картка на фронтенді одразу «зловила» потрібну вам метрику!
+	stats["active_readers_7d"] = newUsers7d
+
+	return stats, nil
+}
