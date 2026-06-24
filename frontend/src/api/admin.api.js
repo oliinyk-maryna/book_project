@@ -12,7 +12,23 @@ if (!API_URL.endsWith('/api')) {
 
 export const adminApi = {
   // ── Статистика ───────────────────────────────────────────────
-  getStats: () => client('/admin/stats'),
+  getStats: async () => {
+    const token = localStorage.getItem('token'); // або 'jwt', залежно від того, як ви його зберігаєте під час логіну
+    
+    const res = await fetch(`${API_URL}/admin/stats`, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}` // Додаємо токен
+      }
+    });
+
+    if (!res.ok) {
+      throw new Error('Помилка завантаження статистики');
+    }
+    
+    return res.json();
+  },
 
   // ── Книги (з пагінацією та пошуком) ─────────────────────────
   getBooks: (page = 1, limit = 10, sort = 'created_at', order = 'DESC', q = '') =>
