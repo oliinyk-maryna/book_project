@@ -687,7 +687,7 @@ func (r *BookRepository) AdminDeleteThread(ctx context.Context, threadID string)
 func (r *BookRepository) AdminGetPlatformStats(ctx context.Context) (map[string]interface{}, error) {
 	stats := make(map[string]interface{})
 
-	// 1. Базові лічильники 
+	// 1. Базові лічильники
 	var totalBooks, totalUsers, totalReviews, totalClubs int
 	var newUsers, newReviews, activeReaders int
 
@@ -1092,19 +1092,18 @@ func (r *BookRepository) AdminListBooks(ctx context.Context, page, limit int, so
 		return nil, 0, err
 	}
 
-	// ВИПРАВЛЕНО: Додано COALESCE(e.page_count, 0)
+	// ВИПРАВЛЕНО: Прибрали звичайний LEFT JOIN для жанрів, замінивши його підзапитом з string_agg.
+	// Тепер усі жанри книги зберуться через кому (наприклад: "Фантастика, Антиутопія").
 	query := fmt.Sprintf(`
 		SELECT DISTINCT ON (%s, w.id)
 			w.id::text, w.title,
 			COALESCE(a.name, 'Невідомий автор'),
 			COALESCE(e.cover_url, ''),
-			COALESCE(g.name, ''),
+			COALESCE((SELECT string_agg(g2.name, ', ') FROM work_genres wg2 JOIN genres g2 ON wg2.genre_id = g2.id WHERE wg2.work_id = w.id), ''),
 			COALESCE(e.page_count, 0)
 		FROM works w
 		LEFT JOIN authors a ON w.author_id = a.id
 		LEFT JOIN editions e ON w.id = e.work_id
-		LEFT JOIN work_genres wg ON w.id = wg.work_id
-		LEFT JOIN genres g ON wg.genre_id = g.id
 	`, dbSortField)
 
 	if search != "" {
@@ -1126,13 +1125,13 @@ func (r *BookRepository) AdminListBooks(ctx context.Context, page, limit int, so
 		var author, category string
 		var pageCount int
 
-		// ВИПРАВЛЕНО: Додано сканування pageCount
 		if err := rows.Scan(&b.ID, &b.Title, &author, &b.CoverURL, &category, &pageCount); err != nil {
 			continue
 		}
+
 		b.Category = category
 		b.Authors = []string{author}
-		b.PageCount = pageCount // Зберігаємо сторінки
+		b.PageCount = pageCount
 		books = append(books, b)
 	}
 	if books == nil {

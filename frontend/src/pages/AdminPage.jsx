@@ -852,7 +852,6 @@ useEffect(() => {
   
   return (
     <div key={b.id || b.ID} className="grid grid-cols-12 gap-3 px-6 py-3 items-center hover:bg-slate-50 transition-colors">
-      {/* ... (ваш код заголовка книги) */}
       <div className="col-span-4 flex items-center gap-3 min-w-0">
         <div className="w-8 h-11 bg-slate-100 rounded-md overflow-hidden shrink-0 border border-slate-200">
            {(b.cover_url || b.CoverURL) && <img src={b.cover_url || b.CoverURL} className="w-full h-full object-cover" alt="" onError={e => e.target.style.display='none'} />}
