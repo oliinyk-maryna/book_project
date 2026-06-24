@@ -432,13 +432,12 @@ function BookModal({ book, onClose, onSaved }) {
       format="sentence" 
     />
 
-    <AsyncTagInput 
+    <AsyncSingleInput 
       label="Видавництво" 
-      tags={form.publisher ? [form.publisher] : []} 
-      onChange={newTags => setForm(f => ({ ...f, publisher: newTags.length > 0 ? newTags[newTags.length - 1] : '' }))} 
+      value={form.publisher} 
+      onChange={val => setForm(f => ({ ...f, publisher: val }))} 
       placeholder="Пошук видавництва..." 
       searchUrl="/publishers/search?q="
-      format="title" 
     />
 
     <FormField label="Кількість стор." value={form.page_count} onChange={e => setForm(f => ({ ...f, page_count: e.target.value }))} type="number" />

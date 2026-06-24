@@ -83,21 +83,32 @@ export default function HomePage({ handleNavigate, isLoggedIn, currentUser, open
 
   const year = new Date().getFullYear();
 
-  useEffect(() => {
+ useEffect(() => {
     const fetchMain = async () => {
       try {
         const [pRes, nRes, yRes] = await Promise.all([
-
-          // Замість fetch(`${API_URL}/books?sort=popular&limit=10`)
-fetch(`${API_URL}/trending?limit=10`),
-
-// Замість fetch(`${API_URL}/books?sort=new&limit=10`)
-fetch(`${API_URL}/newest?limit=10`),
+          fetch(`${API_URL}/trending?limit=10`),
+          fetch(`${API_URL}/newest?limit=10`),
           fetch(`${API_URL}/top-year?year=${year}&limit=10`),
         ]);
-        if (pRes.ok) setPopular((await pRes.json()) || []);
-        if (nRes.ok) setNewBooks((await nRes.json()) || []);
-        if (yRes.ok) setTopYear((await yRes.json()) || []);
+
+        const deduplicate = (arr) => {
+          if (!Array.isArray(arr)) return [];
+          return Array.from(new Map(arr.map(b => [b.id || b.ID, b])).values());
+        };
+
+        if (pRes.ok) {
+          const pData = await pRes.json();
+          setPopular(deduplicate(pData));
+        }
+        if (nRes.ok) {
+          const nData = await nRes.json();
+          setNewBooks(deduplicate(nData));
+        }
+        if (yRes.ok) {
+          const yData = await yRes.json();
+          setTopYear(deduplicate(yData));
+        }
       } catch {}
       finally { setLoadingMain(false); }
     };
