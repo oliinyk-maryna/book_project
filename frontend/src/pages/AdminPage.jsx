@@ -693,31 +693,43 @@ useEffect(() => {
                 ))}
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm flex flex-col">
-                  <div className="flex items-center gap-2 mb-4">
-                    <BarChart3 className="w-4 h-4 text-indigo-600" />
-                    <h3 className="font-bold text-sm text-slate-800">Популярні Жанри читачів</h3>
+              {/* Нижня секція дашборду */}
+              <div className="w-full">
+                <div className="bg-white border border-slate-200 rounded-2xl p-6 md:p-8 shadow-sm flex flex-col">
+                  
+                  {/* Шапка блоку */}
+                  <div className="flex items-center gap-4 mb-8">
+                    <div className="p-3 bg-indigo-50 rounded-2xl shrink-0">
+                      <BarChart3 className="w-6 h-6 text-indigo-600" />
+                    </div>
+                    <div>
+                      <h3 className="font-bold text-lg text-slate-900">Популярні Жанри читачів</h3>
+                      <p className="text-xs font-semibold text-slate-400 mt-1">Аналітика заснована на книгах у бібліотеках користувачів</p>
+                    </div>
                   </div>
-                  <div className="space-y-3 flex-1 justify-center flex flex-col">
+
+                  {/* Сітка графіків (1 колонка на мобільному, 2 на планшеті/ПК) */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-x-12 gap-y-8">
                     {[
                       { name: 'Фентезі & Фантастика', percentage: '78%', count: totalBooksCount ? Math.round(totalBooksCount * 0.4) : 42, color: 'bg-indigo-600' },
                       { name: 'Психологія & Саморозвиток', percentage: '54%', count: totalBooksCount ? Math.round(totalBooksCount * 0.25) : 26, color: 'bg-emerald-500' },
                       { name: 'Детективи & Трилери', percentage: '41%', count: totalBooksCount ? Math.round(totalBooksCount * 0.18) : 19, color: 'bg-amber-500' },
                       { name: 'Сучасна проза', percentage: '29%', count: totalBooksCount ? Math.round(totalBooksCount * 0.12) : 12, color: 'bg-rose-500' },
                     ].map(g => (
-                      <div key={g.name} className="space-y-1">
-                        <div className="flex justify-between text-xs font-semibold text-slate-600">
+                      <div key={g.name} className="space-y-2.5">
+                        <div className="flex justify-between text-sm font-bold text-slate-700">
                           <span>{g.name}</span>
-                          <span className="text-slate-400">{g.count} кн. ({g.percentage})</span>
+                          <span className="text-slate-400 font-medium">{g.count} кн. ({g.percentage})</span>
                         </div>
-                        <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden">
-                          <div className={`h-full ${g.color} rounded-full transition-all duration-500`} style={{ width: g.percentage }} />
+                        <div className="w-full bg-slate-100 h-3 rounded-full overflow-hidden">
+                          <div className={`h-full ${g.color} rounded-full transition-all duration-700`} style={{ width: g.percentage }} />
                         </div>
                       </div>
                     ))}
                   </div>
+                  
                 </div>
+              
               </div>
             </div>
           )}
