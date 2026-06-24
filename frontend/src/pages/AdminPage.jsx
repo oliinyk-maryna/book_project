@@ -6,6 +6,7 @@ import {
   UploadCloud, Inbox, Lock, Globe, Check, BarChart3, TrendingUp
 } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { adminApi } from '../api/admin.api';
 
 /* ── helpers ──────────────────────────────────────────────────── */
@@ -722,48 +723,59 @@ useEffect(() => {
                     })()}
                   </div>
                 </div>
-
-                <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm flex flex-col">
+<div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm flex flex-col">
                   <div className="flex items-center gap-2 mb-4">
                     <TrendingUp className="w-4 h-4 text-emerald-600" />
-                    <h3 className="font-bold text-sm text-slate-800">Нові користувачі (30 днів)</h3>
+                    <h3 className="font-bold text-sm text-slate-800">Динаміка реєстрацій</h3>
                   </div>
-                  {(() => {
-                    const daily = stats?.daily_new_users || [];
-                    if (daily.length === 0) {
-                      return <p className="text-xs text-slate-400 text-center py-8">Немає даних за цей період</p>;
-                    }
-                    const maxVal = Math.max(...daily.map(d => d.count), 1);
-                    const chartH = 80;
-                    const w = 100 / Math.max(daily.length, 1);
-                    return (
-                      <div className="flex-1 flex flex-col gap-2">
-                        <div className="flex items-end gap-0.5 h-20 w-full">
-                          {daily.map((d, i) => {
-                            const barH = Math.max(Math.round((d.count / maxVal) * chartH), 2);
-                            const label = d.day ? d.day.slice(5) : '';
-                            return (
-                              <div key={i} className="flex-1 flex flex-col items-center justify-end group relative">
-                                <div
-                                  className="w-full bg-emerald-500 hover:bg-emerald-600 rounded-sm transition-all duration-200 cursor-default"
-                                  style={{ height: `${barH}%` }}
-                                />
-                                <div className="absolute -top-7 left-1/2 -translate-x-1/2 hidden group-hover:flex bg-slate-800 text-white text-[10px] px-2 py-1 rounded-lg whitespace-nowrap z-10 shadow-lg">
-                                  {label}: {d.count}
-                                </div>
-                              </div>
-                            );
-                          })}
-                        </div>
-                        <div className="flex justify-between text-[10px] text-slate-400 font-medium px-0.5">
-                          <span>{daily[0]?.day?.slice(5) || ''}</span>
-                          <span>{daily[Math.floor(daily.length / 2)]?.day?.slice(5) || ''}</span>
-                          <span>{daily[daily.length - 1]?.day?.slice(5) || ''}</span>
-                        </div>
-                        <p className="text-[10px] text-slate-400 text-center">Наведіть на стовпець для деталей</p>
+                  
+                  <div className="flex-1 w-full h-[250px] min-h-[250px]">
+                    {stats?.daily_new_users?.length > 0 ? (
+                      <ResponsiveContainer width="100%" height="100%">
+                        <LineChart data={stats.daily_new_users} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                          {/* Горизонтальні лінії сітки (як на вашому фото) */}
+                          <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
+                          
+                          {/* Осі X та Y */}
+                          <XAxis 
+                            dataKey="day" 
+                            tickFormatter={(tick) => tick.slice(5)} // Обрізаємо рік, лишаємо тільки місяць і день (MM-DD)
+                            axisLine={false} 
+                            tickLine={false} 
+                            tick={{ fontSize: 12, fill: '#64748b' }} 
+                            dy={10}
+                          />
+                          <YAxis 
+                            allowDecimals={false} // Щоб не показувало 1.5 людини
+                            axisLine={false} 
+                            tickLine={false} 
+                            tick={{ fontSize: 12, fill: '#64748b' }} 
+                          />
+                          
+                          {/* Підказка при наведенні мишкою */}
+                          <Tooltip 
+                            contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
+                            labelFormatter={(label) => `Дата: ${label}`}
+                          />
+                          
+                          {/* Сама лінія графіка (синій або помаранчевий колір, як на фото) */}
+                          <Line 
+                            type="linear" 
+                            dataKey="count" 
+                            name="Нових користувачів"
+                            stroke="#3b82f6" // Синій колір
+                            strokeWidth={3} 
+                            dot={{ r: 5, strokeWidth: 2, fill: '#fff', stroke: '#3b82f6' }} // Крапочки на вузлах
+                            activeDot={{ r: 7, strokeWidth: 0, fill: '#3b82f6' }}
+                          />
+                        </LineChart>
+                      </ResponsiveContainer>
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center text-slate-400 text-sm">
+                         Немає даних за цей період
                       </div>
-                    );
-                  })()}
+                    )}
+                  </div>
                 </div>
               </div>
             </div>
