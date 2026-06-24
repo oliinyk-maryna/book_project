@@ -694,42 +694,81 @@ useEffect(() => {
               </div>
 
               {/* Нижня секція дашборду */}
-              <div className="w-full">
-                <div className="bg-white border border-slate-200 rounded-2xl p-6 md:p-8 shadow-sm flex flex-col">
-                  
-                  {/* Шапка блоку */}
-                  <div className="flex items-center gap-4 mb-8">
-                    <div className="p-3 bg-indigo-50 rounded-2xl shrink-0">
-                      <BarChart3 className="w-6 h-6 text-indigo-600" />
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                
+                {/* БЛОК 1: Жанри */}
+                <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm flex flex-col">
+                  <div className="flex items-center gap-3 mb-6">
+                    <div className="p-2.5 bg-indigo-50 rounded-xl">
+                      <BarChart3 className="w-5 h-5 text-indigo-600" />
                     </div>
                     <div>
-                      <h3 className="font-bold text-lg text-slate-900">Популярні Жанри читачів</h3>
-                      <p className="text-xs font-semibold text-slate-400 mt-1">Аналітика заснована на книгах у бібліотеках користувачів</p>
+                      <h3 className="font-bold text-base text-slate-900">Популярні Жанри</h3>
+                      <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">За вподобаннями</p>
                     </div>
                   </div>
-
-                  {/* Сітка графіків (1 колонка на мобільному, 2 на планшеті/ПК) */}
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-x-12 gap-y-8">
+                  <div className="space-y-4 flex-1 justify-center flex flex-col">
                     {[
                       { name: 'Фентезі & Фантастика', percentage: '78%', count: totalBooksCount ? Math.round(totalBooksCount * 0.4) : 42, color: 'bg-indigo-600' },
                       { name: 'Психологія & Саморозвиток', percentage: '54%', count: totalBooksCount ? Math.round(totalBooksCount * 0.25) : 26, color: 'bg-emerald-500' },
                       { name: 'Детективи & Трилери', percentage: '41%', count: totalBooksCount ? Math.round(totalBooksCount * 0.18) : 19, color: 'bg-amber-500' },
                       { name: 'Сучасна проза', percentage: '29%', count: totalBooksCount ? Math.round(totalBooksCount * 0.12) : 12, color: 'bg-rose-500' },
                     ].map(g => (
-                      <div key={g.name} className="space-y-2.5">
-                        <div className="flex justify-between text-sm font-bold text-slate-700">
+                      <div key={g.name} className="space-y-1.5">
+                        <div className="flex justify-between text-sm font-semibold text-slate-700">
                           <span>{g.name}</span>
-                          <span className="text-slate-400 font-medium">{g.count} кн. ({g.percentage})</span>
+                          <span className="text-slate-400">{g.count} кн. ({g.percentage})</span>
                         </div>
-                        <div className="w-full bg-slate-100 h-3 rounded-full overflow-hidden">
+                        <div className="w-full bg-slate-100 h-2.5 rounded-full overflow-hidden">
                           <div className={`h-full ${g.color} rounded-full transition-all duration-700`} style={{ width: g.percentage }} />
                         </div>
                       </div>
                     ))}
                   </div>
-                  
                 </div>
-              
+
+                {/* БЛОК 2: Графік реєстрацій (Фронтенд-імітація) */}
+                <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm flex flex-col">
+                  <div className="flex items-center gap-3 mb-6">
+                    <div className="p-2.5 bg-emerald-50 rounded-xl">
+                      <Activity className="w-5 h-5 text-emerald-600" />
+                    </div>
+                    <div>
+                      <h3 className="font-bold text-base text-slate-900">Динаміка реєстрацій</h3>
+                      <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Нові читачі (7 днів)</p>
+                    </div>
+                  </div>
+                  
+                  {/* Контейнер графіка */}
+                  <div className="flex-1 flex items-end justify-between gap-2 h-48 mt-2 pb-2">
+                    {[
+                      { day: 'Пн', count: 4, height: '25%' },
+                      { day: 'Вв', count: 7, height: '40%' },
+                      { day: 'Ср', count: 12, height: '65%' },
+                      { day: 'Чт', count: 9, height: '50%' },
+                      { day: 'Пт', count: 15, height: '80%' },
+                      { day: 'Сб', count: 22, height: '100%' }, // Найвищий показник
+                      { day: 'Нд', count: 18, height: '85%' },
+                    ].map((item, i) => (
+                      <div key={i} className="flex flex-col items-center gap-2 flex-1 h-full justify-end group">
+                        {/* Значення над стовпчиком (з'являється при наведенні на ПК, або видно блідо на моб.) */}
+                        <span className="text-[10px] font-bold text-slate-400 group-hover:text-emerald-600 transition-colors mb-1">
+                          {item.count}
+                        </span>
+                        
+                        {/* Сам стовпчик */}
+                        <div 
+                          className="w-full max-w-[40px] bg-emerald-100 rounded-t-lg group-hover:bg-emerald-500 transition-all duration-300 cursor-default" 
+                          style={{ height: item.height }}
+                        ></div>
+                        
+                        {/* Підпис дня тижня */}
+                        <span className="text-xs font-semibold text-slate-500">{item.day}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
               </div>
             </div>
           )}
