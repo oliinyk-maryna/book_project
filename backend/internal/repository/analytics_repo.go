@@ -499,3 +499,70 @@ func (r *AnalyticsRepository) GetUserStreak(ctx context.Context, userID string) 
 	}
 	return streak, nil
 }
+
+// GetGenreStats — статистика кількості книг по кожному жанру для адмін-панелі
+func (r *AnalyticsRepository) GetGenreStats(ctx context.Context) ([]map[string]interface{}, error) {
+	query := `
+		SELECT g.name, COUNT(wg.work_id) as count
+		FROM genres g
+		JOIN work_genres wg ON g.id = wg.genre_id
+		GROUP BY g.name
+		ORDER BY count DESC
+		LIMIT 10;
+	`
+	rows, err := r.db.Query(ctx, query)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var stats []map[string]interface{}
+	for rows.Next() {
+		var name string
+		var count int
+		if err := rows.Scan(&name, &count); err == nil {
+			stats = append(stats, map[string]interface{}{
+				"name":  name,
+				"count": count,
+			})
+		}
+	}
+
+	if stats == nil {
+		stats = []map[string]interface{}{}
+	}
+	return stats, nil
+}
+
+// GetUserGrowth — динаміка реєстрацій нових користувачів за останні 30 днів
+func (r *AnalyticsRepository) GetUserGrowth(ctx context.Context) ([]map[string]interface{}, error) {
+	query := `
+		SELECT TO_CHAR(created_at, 'YYYY-MM-DD') as date, COUNT(*)::int as count
+		FROM users
+		WHERE created_at >= CURRENT_DATE - INTERVAL '30 days'
+		GROUP BY TO_CHAR(created_at, 'YYYY-MM-DD')
+		ORDER BY date ASC;
+	`
+	rows, err := r.db.Query(ctx, query)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var stats []map[string]interface{}
+	for rows.Next() {
+		var date string
+		var count int
+		if err := rows.Scan(&date, &count); err == nil {
+			stats = append(stats, map[string]interface{}{
+				"date":  date,
+				"count": count,
+			})
+		}
+	}
+
+	if stats == nil {
+		stats = []map[string]interface{}{}
+	}
+	return stats, nil
+}

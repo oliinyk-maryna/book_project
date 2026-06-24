@@ -30,15 +30,14 @@ export default function RegisterPage() {
         body: JSON.stringify(formData),
       });
 
-      const data = await response.json(); // Читаємо відповідь сервера
+      const data = await response.json();
 
       if (response.ok) {
-        // ЯКЩО БЕКЕНД ВІДДАЄ ТОКЕН ОДРАЗУ ПІСЛЯ РЕЄСТРАЦІЇ:
         if (data.token) {
            localStorage.setItem('token', data.token);
-           window.location.href = '/admin'; // або navigate('/admin')
+           window.location.href = '/admin';
         } else {
-           setSuccess(true); // Якщо треба лише підтвердження
+           setSuccess(true);
         }
       } else {
         setError(data.message || 'Помилка реєстрації');

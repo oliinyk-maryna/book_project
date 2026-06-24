@@ -234,9 +234,6 @@ func (h *AdminHandler) GetSiteStats(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Оскільки stats це map[string]interface{}, ми звертаємося до ключів через квадратні дужки.
-	// Зверніть увагу: якщо у вашому map ключі називаються інакше (напр. "TotalBooks" замість "total_books"),
-	// змініть рядки у дужках [] на ваші.
 	response := map[string]interface{}{
 		"total_books":       stats["total_books"],
 		"total_users":       stats["total_users"],
@@ -245,20 +242,33 @@ func (h *AdminHandler) GetSiteStats(w http.ResponseWriter, r *http.Request) {
 		"new_users_30d":     stats["new_users_30d"],
 		"new_reviews_30d":   stats["new_reviews_30d"],
 		"active_readers_7d": stats["active_readers_7d"],
-		"top_genres":        stats["top_genres"],
-		"daily_new_users":   stats["daily_new_users"],
 		"system_status":     "Healthy",
 		"last_updated":      time.Now().Format("15:04:05"),
 	}
 
+	// ЗАПОВНЮЄМО БЛОК АНАЛІТИКИ:
 	if h.analyticsRepo != nil {
-		// Додаткова аналітика
+		// Отримуємо жанри
+		genres, err := h.analyticsRepo.GetGenreStats(r.Context())
+		if err == nil && genres != nil {
+			response["genres"] = genres 
+		} else {
+			// Якщо помилка або даних немає, віддаємо порожній масив, щоб графік не впав
+			response["genres"] = []interface{}{} 
+		}
+
+		// Отримуємо графік реєстрацій
+		userGrowth, err := h.analyticsRepo.GetUserGrowth(r.Context())
+		if err == nil && userGrowth != nil {
+			response["user_growth"] = userGrowth
+		} else {
+			response["user_growth"] = []interface{}{}
+		}
 	}
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(response)
 }
-
 // DELETE /api/admin/users/{id}
 func (h *AdminHandler) DeleteUser(w http.ResponseWriter, r *http.Request) {
 	if !adminCheck(r) {
