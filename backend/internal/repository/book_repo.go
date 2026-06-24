@@ -716,63 +716,37 @@ func (r *BookRepository) AdminGetPlatformStats(ctx context.Context) (map[string]
 	_ = r.db.QueryRow(ctx, `SELECT COUNT(*) FROM work_reviews WHERE created_at > NOW() - INTERVAL '30 days'`).Scan(&count)
 	stats["new_reviews_30d"] = count
 
-	// Топ жанрів з бази (тільки ті жанри, в яких є книги)
-	genreRows, err := r.db.Query(ctx, `
-		SELECT g.name, COUNT(wg.work_id)::int as book_count
-		FROM genres g
-		JOIN work_genres wg ON g.id = wg.genre_id
-		WHERE g.name IS NOT NULL AND g.name != ''
-		GROUP BY g.id, g.name
-		ORDER BY book_count DESC
-		LIMIT 8`)
-	if err == nil {
-		defer genreRows.Close()
-		type GenreStat struct {
-			Name      string `json:"name"`
-			BookCount int    `json:"book_count"`
-		}
-		var topGenres []GenreStat
-		for genreRows.Next() {
-			var gs GenreStat
-			if scanErr := genreRows.Scan(&gs.Name, &gs.BookCount); scanErr == nil {
-				topGenres = append(topGenres, gs)
-			}
-		}
-		if topGenres == nil {
-			topGenres = []GenreStat{}
-		}
-		stats["top_genres"] = topGenres
-	} else {
-		stats["top_genres"] = []interface{}{}
-	}
+	genreRows, _ := r.db.Query(ctx, `
+        SELECT g.name, COUNT(wg.work_id)::int as book_count
+        FROM genres g
+        JOIN work_genres wg ON g.id = wg.genre_id
+        GROUP BY g.id, g.name
+        ORDER BY book_count DESC LIMIT 6`)
 
-	// Нові користувачі по днях (Форматуємо дату прямо в SQL, щоб Go легко прочитав рядок)
-	dailyRows, err := r.db.Query(ctx, `
-		SELECT TO_CHAR(created_at, 'YYYY-MM-DD') as day, COUNT(*)::int as cnt
-		FROM users
-		WHERE created_at >= NOW() - INTERVAL '30 days'
-		GROUP BY TO_CHAR(created_at, 'YYYY-MM-DD')
-		ORDER BY day ASC`)
-	if err == nil {
-		defer dailyRows.Close()
-		type DayStat struct {
-			Day   string `json:"day"`
-			Count int    `json:"count"`
-		}
-		var dailyUsers []DayStat
-		for dailyRows.Next() {
-			var ds DayStat
-			if scanErr := dailyRows.Scan(&ds.Day, &ds.Count); scanErr == nil {
-				dailyUsers = append(dailyUsers, ds)
-			}
-		}
-		if dailyUsers == nil {
-			dailyUsers = []DayStat{}
-		}
-		stats["daily_new_users"] = dailyUsers
-	} else {
-		stats["daily_new_users"] = []interface{}{}
+	var topGenres []map[string]interface{}
+	for genreRows.Next() {
+		var name string
+		var count int
+		genreRows.Scan(&name, &count)
+		topGenres = append(topGenres, map[string]interface{}{"name": name, "book_count": count})
 	}
+	stats["top_genres"] = topGenres
+
+	// 3. Додайте запит для графіка реєстрацій:
+	regRows, _ := r.db.Query(ctx, `
+        SELECT TO_CHAR(created_at, 'YYYY-MM-DD') as day, COUNT(*)::int as count
+        FROM users
+        WHERE created_at >= NOW() - INTERVAL '30 days'
+        GROUP BY 1 ORDER BY 1 ASC`)
+
+	var dailyUsers []map[string]interface{}
+	for regRows.Next() {
+		var day string
+		var count int
+		regRows.Scan(&day, &count)
+		dailyUsers = append(dailyUsers, map[string]interface{}{"day": day, "count": count})
+	}
+	stats["daily_new_users"] = dailyUsers
 
 	return stats, nil
 }
