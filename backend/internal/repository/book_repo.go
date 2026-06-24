@@ -686,65 +686,69 @@ func (r *BookRepository) AdminDeleteThread(ctx context.Context, threadID string)
 
 func (r *BookRepository) AdminGetPlatformStats(ctx context.Context) (map[string]interface{}, error) {
 	stats := make(map[string]interface{})
-	var count int
 
-	_ = r.db.QueryRow(ctx, `SELECT COUNT(*) FROM works`).Scan(&count)
-	stats["total_books"] = count
+	// 1. Базові лічильники 
+	var totalBooks, totalUsers, totalReviews, totalClubs int
+	var newUsers, newReviews, activeReaders int
 
-	_ = r.db.QueryRow(ctx, `SELECT COUNT(*) FROM users`).Scan(&count)
-	stats["total_users"] = count
+	r.db.QueryRow(ctx, "SELECT COUNT(*) FROM works").Scan(&totalBooks)
+	r.db.QueryRow(ctx, "SELECT COUNT(*) FROM users").Scan(&totalUsers)
+	r.db.QueryRow(ctx, "SELECT COUNT(*) FROM work_reviews").Scan(&totalReviews)
+	r.db.QueryRow(ctx, "SELECT COUNT(*) FROM groups").Scan(&totalClubs)
 
-	_ = r.db.QueryRow(ctx, `SELECT COUNT(*) FROM work_reviews`).Scan(&count)
-	stats["total_reviews"] = count
+	r.db.QueryRow(ctx, "SELECT COUNT(*) FROM users WHERE created_at >= NOW() - INTERVAL '30 days'").Scan(&newUsers)
+	r.db.QueryRow(ctx, "SELECT COUNT(*) FROM work_reviews WHERE created_at >= NOW() - INTERVAL '30 days'").Scan(&newReviews)
+	r.db.QueryRow(ctx, "SELECT COUNT(DISTINCT user_id) FROM reading_sessions WHERE created_at >= NOW() - INTERVAL '7 days'").Scan(&activeReaders)
 
-	// groups — реальна назва таблиці (clubs — аліас у фронті)
-	_ = r.db.QueryRow(ctx, `SELECT COUNT(*) FROM groups`).Scan(&count)
-	stats["total_clubs"] = count
+	stats["total_books"] = totalBooks
+	stats["total_users"] = totalUsers
+	stats["total_reviews"] = totalReviews
+	stats["total_clubs"] = totalClubs
+	stats["new_users_30d"] = newUsers
+	stats["new_reviews_30d"] = newReviews
+	stats["active_readers_7d"] = activeReaders
 
-	_ = r.db.QueryRow(ctx, `SELECT COUNT(*) FROM user_editions`).Scan(&count)
-	stats["total_shelf_items"] = count
+	// 2. Топ жанрів
+	genreRows, err := r.db.Query(ctx, `
+		SELECT g.name, COUNT(wg.work_id)::int as book_count
+		FROM genres g
+		JOIN work_genres wg ON g.id = wg.genre_id
+		GROUP BY g.id, g.name
+		ORDER BY book_count DESC LIMIT 6
+	`)
 
-	// Нові реєстрації за останні 30 днів
-	_ = r.db.QueryRow(ctx, `SELECT COUNT(*) FROM users WHERE created_at > NOW() - INTERVAL '30 days'`).Scan(&count)
-	stats["new_users_30d"] = count
-
-	// Активні читачі (оновлювали прогрес за тиждень)
-	_ = r.db.QueryRow(ctx, `SELECT COUNT(DISTINCT user_id) FROM user_editions WHERE updated_at > NOW() - INTERVAL '7 days'`).Scan(&count)
-	stats["active_readers_7d"] = count
-
-	// Відгуки за останній місяць
-	_ = r.db.QueryRow(ctx, `SELECT COUNT(*) FROM work_reviews WHERE created_at > NOW() - INTERVAL '30 days'`).Scan(&count)
-	stats["new_reviews_30d"] = count
-
-	genreRows, _ := r.db.Query(ctx, `
-        SELECT g.name, COUNT(wg.work_id)::int as book_count
-        FROM genres g
-        JOIN work_genres wg ON g.id = wg.genre_id
-        GROUP BY g.id, g.name
-        ORDER BY book_count DESC LIMIT 6`)
-
-	var topGenres []map[string]interface{}
-	for genreRows.Next() {
-		var name string
-		var count int
-		genreRows.Scan(&name, &count)
-		topGenres = append(topGenres, map[string]interface{}{"name": name, "book_count": count})
+	topGenres := make([]map[string]interface{}, 0)
+	if err == nil {
+		defer genreRows.Close()
+		for genreRows.Next() {
+			var name string
+			var count int
+			if err := genreRows.Scan(&name, &count); err == nil {
+				topGenres = append(topGenres, map[string]interface{}{"name": name, "book_count": count})
+			}
+		}
 	}
 	stats["top_genres"] = topGenres
 
-	// 3. Додайте запит для графіка реєстрацій:
-	regRows, _ := r.db.Query(ctx, `
-        SELECT TO_CHAR(created_at, 'YYYY-MM-DD') as day, COUNT(*)::int as count
-        FROM users
-        WHERE created_at >= NOW() - INTERVAL '30 days'
-        GROUP BY 1 ORDER BY 1 ASC`)
+	// 3. Динаміка реєстрацій
+	dailyRows, err := r.db.Query(ctx, `
+		SELECT TO_CHAR(created_at, 'YYYY-MM-DD') as day, COUNT(*)::int as count
+		FROM users
+		WHERE created_at >= NOW() - INTERVAL '30 days'
+		GROUP BY TO_CHAR(created_at, 'YYYY-MM-DD')
+		ORDER BY day ASC
+	`)
 
-	var dailyUsers []map[string]interface{}
-	for regRows.Next() {
-		var day string
-		var count int
-		regRows.Scan(&day, &count)
-		dailyUsers = append(dailyUsers, map[string]interface{}{"day": day, "count": count})
+	dailyUsers := make([]map[string]interface{}, 0)
+	if err == nil {
+		defer dailyRows.Close()
+		for dailyRows.Next() {
+			var day string
+			var count int
+			if err := dailyRows.Scan(&day, &count); err == nil {
+				dailyUsers = append(dailyUsers, map[string]interface{}{"day": day, "count": count})
+			}
+		}
 	}
 	stats["daily_new_users"] = dailyUsers
 
