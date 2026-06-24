@@ -840,18 +840,17 @@ useEffect(() => {
                           <div className="col-span-1 text-right">Дії</div>
                         </div>
                         {books.map(b => {
-  // 1. БЕЗПЕЧНО ОТРИМУЄМО МАСИВ ЖАНРІВ
-  const rawGenres = b.genres || b.Genres;
-  const genreStr = b.category || b.Category || '';
-  
-  let genresList = [];
-  if (Array.isArray(rawGenres) && rawGenres.length > 0) {
-    genresList = rawGenres;
-  } else if (typeof genreStr === 'string' && genreStr.trim()) {
-    // Якщо бекенд віддає жанри як один рядок "Фентезі, Роман", розбиваємо їх на масив
-    genresList = genreStr.split(',').map(s => s.trim()).filter(Boolean);
-  }
+  // Допоміжна функція прямо як у BookModal для розбору масиву або строки
+  const safeArrayFormat = (arr, fallback) => {
+    if (Array.isArray(arr) && arr.length > 0) return arr;
+    const str = fallback || '';
+    if (str === 'Не вказано' || str === 'Без категорії') return [];
+    return str ? String(str).split(',').map(s => s.trim()).filter(Boolean) : [];
+  };
 
+  // Витягуємо жанри БЕЗПЕЧНО, так само як у формі редагування
+  const genresList = safeArrayFormat(b.genres || b.Genres, b.category || b.Category);
+  
   const pages = b.page_count || b.PageCount || '—';
   
   return (
@@ -867,7 +866,7 @@ useEffect(() => {
         {b.authors?.join(', ') || b.author || b.Author || '—'}
       </div>
       
-      {/* 2. ВИВОДИМО ЖАНРИ */}
+      {/* ВИВІД ЖАНРІВ */}
       <div className="col-span-3 flex flex-wrap gap-1 max-h-12 overflow-hidden">
         {genresList.length > 0 ? genresList.map((g, i) => (
           <span key={i} className="bg-indigo-50/60 border border-indigo-100 text-[10px] text-indigo-600 font-bold px-1.5 py-0.5 rounded-md">
