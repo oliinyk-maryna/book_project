@@ -840,13 +840,15 @@ useEffect(() => {
                           <div className="col-span-1 text-right">Дії</div>
                         </div>
                        {books.map(b => {
-  // Виправлена логіка витягнення жанрів безпосередньо тут:
-  const rawGenres = b.genres || b.Genres || b.category || b.Category;
-  const genresList = Array.isArray(rawGenres) 
-    ? rawGenres 
-    : (typeof rawGenres === 'string' && rawGenres !== 'Не вказано' && rawGenres !== 'Без категорії') 
-      ? rawGenres.split(',').map(s => s.trim()).filter(Boolean) 
-      : [];
+  // 1. Отримуємо значення з будь-якого з можливих полів
+  const rawData = b.genres || b.Genres || b.category || b.Category;
+  
+  let genresList = [];
+  if (Array.isArray(rawData)) {
+    genresList = rawData;
+  } else if (typeof rawData === 'string') {
+    genresList = rawData.split(',').map(s => s.trim()).filter(s => s !== '' && s !== 'Не вказано' && s !== 'Без категорії');
+  }
   
   const pages = b.page_count || b.PageCount || '—';
   
@@ -860,13 +862,12 @@ useEffect(() => {
       </div>
       
       <div className="col-span-3 text-sm text-slate-600 truncate">
-        {b.authors?.join(', ') || b.author || b.Author || '—'}
+        {Array.isArray(b.authors) ? b.authors.join(', ') : (b.authors || b.author || b.Author || '—')}
       </div>
       
-      {/* Оновлений вивід жанрів */}
       <div className="col-span-3 flex flex-wrap gap-1 max-h-12 overflow-hidden">
         {genresList.length > 0 ? genresList.map((g, i) => (
-          <span key={i} className="bg-indigo-50/60 border border-indigo-100 text-[10px] text-indigo-600 font-bold px-1.5 py-0.5 rounded-md whitespace-nowrap">
+          <span key={i} className="bg-indigo-50/60 border border-indigo-100 text-[10px] text-indigo-600 font-bold px-1.5 py-0.5 rounded-md">
             {g}
           </span>
         )) : (
