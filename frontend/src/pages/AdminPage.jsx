@@ -840,36 +840,57 @@ useEffect(() => {
                           <div className="col-span-1 text-right">Дії</div>
                         </div>
                         {books.map(b => {
-                          const genreStr = b.category || b.Category;
-                          const pages = b.page_count || b.PageCount || '—';
-                          
-                          return (
-                            <div key={b.id || b.ID} className="grid grid-cols-12 gap-3 px-6 py-3 items-center hover:bg-slate-50 transition-colors">
-                              <div className="col-span-4 flex items-center gap-3 min-w-0">
-                                <div className="w-8 h-11 bg-slate-100 rounded-md overflow-hidden shrink-0 border border-slate-200">
-                                  {(b.cover_url || b.CoverURL) && <img src={b.cover_url || b.CoverURL} className="w-full h-full object-cover" alt="" onError={e => e.target.style.display='none'} />}
-                                </div>
-                                <span className="font-semibold text-slate-900 text-sm truncate">{b.title || b.Title}</span>
-                              </div>
-                              <div className="col-span-3 text-sm text-slate-600 truncate">{b.authors?.join(', ') || b.author || b.Author || '—'}</div>
-                              
-                              <div className="col-span-3 flex flex-wrap gap-1 max-h-12 overflow-hidden truncate">
-                                {b.genres?.length > 0 ? b.genres.map((g, i) => (
-                                  <span key={i} className="bg-indigo-50/60 border border-indigo-100 text-[10px] text-indigo-600 font-bold px-1.5 py-0.5 rounded-md">{g}</span>
-                                )) : genreStr ? (
-                                  <span className="bg-indigo-50/60 border border-indigo-100 text-[10px] text-indigo-600 font-bold px-1.5 py-0.5 rounded-md">{genreStr}</span>
-                                ) : <span className="text-slate-300 text-xs">—</span>}
-                              </div>
-                              
-                              <div className="col-span-1 text-sm font-semibold text-slate-500">{pages}</div>
-                              
-                              <div className="col-span-1 flex justify-end gap-1">
-                                <button onClick={() => openEditBook(b)} className="p-2 rounded-lg text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 transition-colors"><Edit2 className="w-3.5 h-3.5" /></button>
-                                <button onClick={() => delBook(b)} className="p-2 rounded-lg text-slate-400 hover:text-red-600 hover:bg-red-50 transition-colors"><Trash2 className="w-3.5 h-3.5" /></button>
-                              </div>
-                            </div>
-                          );
-                        })}
+  // 1. БЕЗПЕЧНО ОТРИМУЄМО МАСИВ ЖАНРІВ
+  const rawGenres = b.genres || b.Genres;
+  const genreStr = b.category || b.Category || '';
+  
+  let genresList = [];
+  if (Array.isArray(rawGenres) && rawGenres.length > 0) {
+    genresList = rawGenres;
+  } else if (typeof genreStr === 'string' && genreStr.trim()) {
+    // Якщо бекенд віддає жанри як один рядок "Фентезі, Роман", розбиваємо їх на масив
+    genresList = genreStr.split(',').map(s => s.trim()).filter(Boolean);
+  }
+
+  const pages = b.page_count || b.PageCount || '—';
+  
+  return (
+    <div key={b.id || b.ID} className="grid grid-cols-12 gap-3 px-6 py-3 items-center hover:bg-slate-50 transition-colors">
+      <div className="col-span-4 flex items-center gap-3 min-w-0">
+        <div className="w-8 h-11 bg-slate-100 rounded-md overflow-hidden shrink-0 border border-slate-200">
+          {(b.cover_url || b.CoverURL) && <img src={b.cover_url || b.CoverURL} className="w-full h-full object-cover" alt="" onError={e => e.target.style.display='none'} />}
+        </div>
+        <span className="font-semibold text-slate-900 text-sm truncate">{b.title || b.Title}</span>
+      </div>
+      
+      <div className="col-span-3 text-sm text-slate-600 truncate">
+        {b.authors?.join(', ') || b.author || b.Author || '—'}
+      </div>
+      
+      {/* 2. ВИВОДИМО ЖАНРИ */}
+      <div className="col-span-3 flex flex-wrap gap-1 max-h-12 overflow-hidden">
+        {genresList.length > 0 ? genresList.map((g, i) => (
+          <span key={i} className="bg-indigo-50/60 border border-indigo-100 text-[10px] text-indigo-600 font-bold px-1.5 py-0.5 rounded-md">
+            {g}
+          </span>
+        )) : (
+          <span className="text-slate-300 text-xs">—</span>
+        )}
+      </div>
+      
+      <div className="col-span-1 text-sm font-semibold text-slate-500">{pages}</div>
+      
+      <div className="col-span-1 flex justify-end gap-1">
+        <button onClick={() => openEditBook(b)} className="p-2 rounded-lg text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 transition-colors">
+          <Edit2 className="w-3.5 h-3.5" />
+        </button>
+        <button onClick={() => delBook(b)} className="p-2 rounded-lg text-slate-400 hover:text-red-600 hover:bg-red-50 transition-colors">
+          <Trash2 className="w-3.5 h-3.5" />
+        </button>
+      </div>
+    </div>
+  );
+})}
                       </div>
                     )
                   }
