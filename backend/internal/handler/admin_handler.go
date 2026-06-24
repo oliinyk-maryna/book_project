@@ -245,6 +245,8 @@ func (h *AdminHandler) GetSiteStats(w http.ResponseWriter, r *http.Request) {
 		"new_users_30d":     stats["new_users_30d"],
 		"new_reviews_30d":   stats["new_reviews_30d"],
 		"active_readers_7d": stats["active_readers_7d"],
+		"top_genres":        stats["top_genres"],
+		"daily_new_users":   stats["daily_new_users"],
 		"system_status":     "Healthy",
 		"last_updated":      time.Now().Format("15:04:05"),
 	}
