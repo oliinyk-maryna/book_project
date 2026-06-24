@@ -693,98 +693,117 @@ useEffect(() => {
               </div>
 
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                
-    {/* 1. Блок Жанрів */}
-    <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm flex flex-col">
-      <div className="flex items-center gap-3 mb-6">
-        <div className="p-2 bg-indigo-50 rounded-lg">
-          <BarChart3 className="w-5 h-5 text-indigo-600" />
-        </div>
-        <h3 className="font-bold text-sm text-slate-800">Популярні жанри каталогу</h3>
+  
+  {/* 1. Блок Жанрів */}
+  <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm flex flex-col">
+    <div className="flex items-center gap-3 mb-6">
+      <div className="p-2 bg-indigo-50 rounded-lg">
+        <BarChart3 className="w-5 h-5 text-indigo-600" />
       </div>
-      <div className="space-y-4 flex-1 justify-center flex flex-col">
-        {(() => {
-          // ВИПРАВЛЕНО: stats?.top_genres -> stats?.genres
-          const genres = stats?.genres || [];
-          if (genres.length === 0) {
-            return <p className="text-xs text-slate-400 text-center py-4">Жанрів поки немає</p>;
-          }
-          
-          // ВИПРАВЛЕНО: g.book_count -> g.count
-          const totalBooksInTop = genres.reduce((sum, g) => sum + g.count, 0);
-          const colors = ['bg-indigo-600', 'bg-emerald-500', 'bg-amber-500', 'bg-rose-500', 'bg-cyan-500', 'bg-violet-500'];
-          
-          return genres.slice(0, 6).map((g, i) => {
-            // ВИПРАВЛЕНО: g.book_count -> g.count
-            const pct = totalBooksInTop > 0 ? Math.round((g.count / totalBooksInTop) * 100) : 0;
-            return (
-              <div key={g.name} className="space-y-1.5">
-                <div className="flex justify-between text-xs font-semibold text-slate-600">
-                  <span>{g.name}</span>
-                  <span className="text-slate-400">{g.count} кн. ({pct}%)</span>
-                </div>
-                <div className="w-full bg-slate-100 h-2.5 rounded-full overflow-hidden">
-                  <div className={`h-full ${colors[i % colors.length]} rounded-full transition-all duration-700`} style={{ width: `${pct}%` }} />
-                </div>
-              </div>
-            );
-          });
-        })()}
-      </div>
+      <h3 className="font-bold text-sm text-slate-800">Популярні жанри каталогу</h3>
     </div>
+    <div className="space-y-4 flex-1 justify-center flex flex-col">
+      {(() => {
+        // ВІДКОРИГОВАНО: Беремо stats?.top_genres відповідно до JSON з бекенду
+        const genres = stats?.top_genres || [];
+        if (genres.length === 0) {
+          return <p className="text-xs text-slate-400 text-center py-4">Жанрів поки немає</p>;
+        }
+        
+        // ВІДКОРИГОВАНО: Рахуємо суму через g.book_count
+        const totalBooksInTop = genres.reduce((sum, g) => sum + (g.book_count || 0), 0);
+        const colors = ['bg-indigo-600', 'bg-emerald-500', 'bg-amber-500', 'bg-rose-500', 'bg-cyan-500', 'bg-violet-500'];
+        
+        return genres.slice(0, 6).map((g, i) => {
+          // ВІДКОРИГОВАНО: Використовуємо g.book_count замість g.count
+          const pct = totalBooksInTop > 0 ? Math.round((g.book_count / totalBooksInTop) * 100) : 0;
+          return (
+            <div key={g.name} className="space-y-1.5">
+              <div className="flex justify-between text-xs font-semibold text-slate-600">
+                <span>{g.name}</span>
+                <span className="text-slate-400">{g.book_count} кн. ({pct}%)</span>
+              </div>
+              <div className="w-full bg-slate-100 h-2.5 rounded-full overflow-hidden">
+                <div className={`h-full ${colors[i % colors.length]} rounded-full transition-all duration-700`} style={{ width: `${pct}%` }} />
+              </div>
+            </div>
+          );
+        });
+      })()}
+    </div>
+  </div>
 
-    {/* 2. Блок Динаміки (Справжня лінійна діаграма) */}
-    <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm flex flex-col">
-      <div className="flex items-center gap-3 mb-6">
-        <div className="p-2 bg-emerald-50 rounded-lg">
-          <TrendingUp className="w-5 h-5 text-emerald-600" />
-        </div>
-        <h3 className="font-bold text-sm text-slate-800">Динаміка реєстрацій (30 днів)</h3>
+  {/* 2. Блок Динаміки (Справжня лінійна діаграма Recharts) */}
+  <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm flex flex-col min-h-[320px]">
+    <div className="flex items-center gap-3 mb-6">
+      <div className="p-2 bg-emerald-50 rounded-lg">
+        <TrendingUp className="w-5 h-5 text-emerald-600" />
       </div>
-      
-      <div className="flex-1 w-full h-[250px] min-h-[250px]">
-        {/* ВИПРАВЛЕНО: stats?.daily_new_users -> stats?.user_growth */}
-        {stats?.user_growth?.length > 0 ? (
+      <h3 className="font-bold text-sm text-slate-800">Динаміка реєстрації нових користувачів</h3>
+    </div>
+    
+    <div className="flex-1 w-full h-64 min-h-[240px]">
+      {(() => {
+        // Зчитуємо масив daily_new_users з вашого JSON
+        const chartData = stats?.daily_new_users || [];
+        if (chartData.length === 0) {
+          return (
+            <div className="h-full flex items-center justify-center text-xs text-slate-400 py-10">
+              Дані про реєстрації відсутні
+            </div>
+          );
+        }
+
+        // Форматуємо дату для гарного підпису на осі X (з "2026-05-27" робимо "27.05")
+        const formattedData = chartData.map(item => {
+          const dateParts = item.day.split('-');
+          return {
+            ...item,
+            formattedDay: dateParts.length === 3 ? `${dateParts[2]}.${dateParts[1]}` : item.day
+          };
+        });
+
+        return (
           <ResponsiveContainer width="100%" height="100%">
-            {/* ВИПРАВЛЕНО: data={stats.daily_new_users} -> data={stats.user_growth} */}
-            <LineChart data={stats.user_growth} margin={{ top: 10, right: 10, left: -25, bottom: 0 }}>
-              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+            <LineChart data={formattedData} margin={{ top: 10, right: 10, left: -25, bottom: 5 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
               <XAxis 
-                dataKey="date" // ВИПРАВЛЕНО: day -> date
-                tickFormatter={(tick) => tick.slice(5)} // Показує тільки місяць-день (напр. 06-24)
-                axisLine={false} 
-                tickLine={false} 
-                tick={{ fontSize: 11, fill: '#64748b' }} 
-                dy={10}
+                dataKey="formattedDay" 
+                tick={{ fontSize: 11, fill: '#94a3b8' }} 
+                axisLine={false}
+                tickLine={false}
               />
               <YAxis 
-                allowDecimals={false} 
-                axisLine={false} 
-                tickLine={false} 
-                tick={{ fontSize: 11, fill: '#64748b' }} 
+                tick={{ fontSize: 11, fill: '#94a3b8' }} 
+                axisLine={false}
+                tickLine={false}
+                allowDecimals={false}
               />
               <Tooltip 
-                contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)', fontSize: '12px' }}
+                contentStyle={{ 
+                  backgroundColor: '#ffffff', 
+                  border: '1px solid #e2e8f0', 
+                  borderRadius: '0.75rem',
+                  fontSize: '12px',
+                  boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.05)'
+                }}
                 labelFormatter={(label) => `Дата: ${label}`}
+                formatter={(value) => [`${value} користувачів`, 'Нові користувачі']}
               />
               <Line 
                 type="monotone" 
-                dataKey="count" 
-                name="Нових користувачів"
+                dataKey="count" // ключ "count" береться прямо з об'єкта у вашому daily_new_users
                 stroke="#10b981" 
                 strokeWidth={3} 
-                dot={{ r: 4, strokeWidth: 2, fill: '#fff', stroke: '#10b981' }} 
-                activeDot={{ r: 6, strokeWidth: 0, fill: '#10b981' }}
+                dot={{ r: 4, stroke: '#10b981', strokeWidth: 2, fill: '#ffffff' }}
+                activeDot={{ r: 6 }} 
               />
             </LineChart>
           </ResponsiveContainer>
-        ) : (
-            <div className="w-full h-full flex items-center justify-center text-slate-400 text-sm">
-              Немає даних за цей період
-            </div>
-        )}
-      </div>
+        );
+      })()}
     </div>
+  </div>
 
 </div>
             </div>
