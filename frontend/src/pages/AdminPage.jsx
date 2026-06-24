@@ -718,31 +718,6 @@ useEffect(() => {
                     ))}
                   </div>
                 </div>
-
-                <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm flex flex-col">
-                  <div className="flex items-center gap-2 mb-4">
-                    <Server className="w-4 h-4 text-emerald-600" />
-                    <h3 className="font-bold text-sm text-slate-800">Технічний стан нод платформи</h3>
-                  </div>
-                  <div className="divide-y divide-slate-100 flex-1 flex flex-col justify-between text-xs">
-                    <div className="py-2.5 flex justify-between items-center">
-                      <span className="text-slate-600 font-medium">База даних PostgreSQL</span>
-                      <span className="px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-700 font-bold text-[10px]">Connected (0.4ms)</span>
-                    </div>
-                    <div className="py-2.5 flex justify-between items-center">
-                      <span className="text-slate-600 font-medium">Сховище Обкладинок (/uploads)</span>
-                      <span className="text-slate-500">Використано 1.4 GB / 10 GB</span>
-                    </div>
-                    <div className="py-2.5 flex justify-between items-center">
-                      <span className="text-slate-600 font-medium">Статус АПІ Бекенду</span>
-                      <span className="px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-700 font-bold text-[10px]">Online</span>
-                    </div>
-                    <div className="py-2.5 flex justify-between items-center">
-                      <span className="text-slate-600 font-medium">Модерація черги сповіщень</span>
-                      <span className="text-slate-400">Всі сповіщення доставлено</span>
-                    </div>
-                  </div>
-                </div>
               </div>
             </div>
           )}
